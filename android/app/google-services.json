@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "157645569808",
+    "project_id": "saidia-app-e28dd",
+    "storage_bucket": "saidia-app-e28dd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:157645569808:android:83ebc4dfb941b5644c2f95",
+        "android_client_info": {
+          "package_name": "com.example.saidia_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMmmSnf0-nM1q-rsrMV7wksMdIICLq4W4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
