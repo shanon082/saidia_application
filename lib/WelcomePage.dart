@@ -70,7 +70,7 @@ class WelcomePage extends StatelessWidget {
                 // Login Button
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
+                  height: 50,
                   child: ElevatedButton(
                     onPressed: () {
                       Navigator.push(
@@ -101,7 +101,7 @@ class WelcomePage extends StatelessWidget {
                 // Sign Up Button
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
+                  height: 50,
                   child: OutlinedButton(
                     onPressed: () {
                       Navigator.push(
