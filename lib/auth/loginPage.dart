@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:saidia_app/auth/signupPage.dart';
 import 'package:saidia_app/screens/admin/adminDashboard.dart';
+import 'package:saidia_app/screens/admin/createAdmin.dart';
 import 'package:saidia_app/screens/customers/customerDashboard.dart';
 import 'package:saidia_app/screens/provider/providerDashboard.dart';
 
@@ -277,12 +278,12 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // void _navigateToAdminCreation() {
-  //   Navigator.push(
-  //     context,
-  //     MaterialPageRoute(builder: (_) => const CreateAdminPage()),
-  //   );
-  // }
+  void _navigateToAdminCreation() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CreateAdminPage()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
