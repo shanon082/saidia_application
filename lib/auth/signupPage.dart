@@ -34,23 +34,24 @@ class _SignUpPageState extends State<SignUpPage> {
 
   String _formatPhoneNumber(String phone) {
     String cleaned = phone.replaceAll(RegExp(r'[\s\-]+'), '');
-    
+
     // Remove leading + if present
     if (cleaned.startsWith('+')) {
       cleaned = cleaned.substring(1);
     }
-    
+
     // Handle different formats
     if (cleaned.startsWith('0') && cleaned.length == 10) {
       return '+256${cleaned.substring(1)}';
-    } else if ((cleaned.startsWith('7') || cleaned.startsWith('1')) && cleaned.length == 9) {
+    } else if ((cleaned.startsWith('7') || cleaned.startsWith('1')) &&
+        cleaned.length == 9) {
       return '+256$cleaned';
     } else if (cleaned.startsWith('256') && cleaned.length == 12) {
       return '+$cleaned';
     } else if (cleaned.length == 9 && RegExp(r'^[0-9]+$').hasMatch(cleaned)) {
       return '+256$cleaned';
     }
-    
+
     return '+$cleaned';
   }
 
@@ -102,15 +103,15 @@ class _SignUpPageState extends State<SignUpPage> {
       }
 
       print('Checking for duplicate accounts...');
-      
+
       // Check duplicates with better error handling
       final emailTaken = await _firestoreService.isEmailTaken(email);
       final phoneTaken = await _firestoreService.isPhoneTaken(formattedPhone);
-      
+
       if (emailTaken) {
         throw 'Email is already registered. Please use a different email or login.';
       }
-      
+
       if (phoneTaken) {
         throw 'Phone number is already registered. Please use a different phone number.';
       }
@@ -126,7 +127,7 @@ class _SignUpPageState extends State<SignUpPage> {
         },
         verificationFailed: (FirebaseAuthException e) {
           print('Verification failed: ${e.code} - ${e.message}');
-          
+
           String errorMessage = 'Phone verification failed';
           switch (e.code) {
             case 'invalid-phone-number':
@@ -139,7 +140,7 @@ class _SignUpPageState extends State<SignUpPage> {
               errorMessage = 'SMS quota exceeded. Please try again later';
               break;
           }
-          
+
           if (mounted) {
             setState(() {
               _errorMessage = errorMessage;
@@ -156,7 +157,7 @@ class _SignUpPageState extends State<SignUpPage> {
               _isLoading = false;
             });
           }
-          
+
           // Show success message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -185,7 +186,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   Future<void> _verifyOTP() async {
     final otp = _otpController.text.trim();
-    
+
     if (otp.isEmpty || otp.length != 6) {
       setState(() => _errorMessage = 'Please enter a valid 6-digit OTP');
       return;
@@ -203,7 +204,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
     try {
       print('Verifying OTP...');
-      
+
       final credential = PhoneAuthProvider.credential(
         verificationId: _verificationId,
         smsCode: otp,
@@ -213,7 +214,7 @@ class _SignUpPageState extends State<SignUpPage> {
       await _completeSignup(credential, formattedPhone);
     } on FirebaseAuthException catch (e) {
       print('OTP verification error: ${e.code} - ${e.message}');
-      
+
       String errorMessage = 'Invalid OTP';
       switch (e.code) {
         case 'invalid-verification-code':
@@ -223,7 +224,7 @@ class _SignUpPageState extends State<SignUpPage> {
           errorMessage = 'OTP session expired. Please request a new OTP';
           break;
       }
-      
+
       setState(() {
         _errorMessage = errorMessage;
         _isLoading = false;
@@ -237,15 +238,20 @@ class _SignUpPageState extends State<SignUpPage> {
     }
   }
 
-  Future<void> _completeSignup(PhoneAuthCredential phoneCredential, String formattedPhone) async {
+  Future<void> _completeSignup(
+    PhoneAuthCredential phoneCredential,
+    String formattedPhone,
+  ) async {
     try {
       print('Starting complete signup process...');
-      
+
       // 1. Sign in with phone credential
       print('Signing in with phone credential...');
-      final phoneUserCredential = await _auth.signInWithCredential(phoneCredential);
+      final phoneUserCredential = await _auth.signInWithCredential(
+        phoneCredential,
+      );
       final user = phoneUserCredential.user!;
-      
+
       print('Successfully signed in with phone. UID: ${user.uid}');
 
       // 2. Link email/password credential
@@ -254,7 +260,7 @@ class _SignUpPageState extends State<SignUpPage> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-      
+
       try {
         await user.linkWithCredential(emailCredential);
         print('Email/password linked successfully');
@@ -272,7 +278,7 @@ class _SignUpPageState extends State<SignUpPage> {
       print('Updating user profile...');
       await user.updateDisplayName(_nameController.text);
       await user.verifyBeforeUpdateEmail(_emailController.text.trim());
-      
+
       // 4. Wait for auth state to propagate
       await Future.delayed(const Duration(milliseconds: 300));
 
@@ -283,7 +289,7 @@ class _SignUpPageState extends State<SignUpPage> {
         email: _emailController.text.trim(),
         phone: formattedPhone,
       );
-      
+
       print('User profile created successfully!');
 
       // 6. Navigate to home page
@@ -294,7 +300,7 @@ class _SignUpPageState extends State<SignUpPage> {
           MaterialPageRoute(builder: (_) => const HomePage()),
           (route) => false,
         );
-        
+
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -307,14 +313,14 @@ class _SignUpPageState extends State<SignUpPage> {
     } catch (e, stackTrace) {
       print('Complete signup error: $e');
       print('Stack trace: $stackTrace');
-      
+
       // Sign out if there's an error to clean up
       try {
         await _auth.signOut();
       } catch (e) {
         print('Error signing out: $e');
       }
-      
+
       String errorMessage = 'Signup failed. Please try again';
       if (e is FirebaseAuthException) {
         switch (e.code) {
@@ -331,7 +337,7 @@ class _SignUpPageState extends State<SignUpPage> {
             errorMessage = e.message ?? 'Authentication failed';
         }
       }
-      
+
       if (mounted) {
         setState(() {
           _errorMessage = errorMessage;
@@ -369,359 +375,408 @@ class _SignUpPageState extends State<SignUpPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Account'),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.blue,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              const SizedBox(height: 20),
-              const Text(
-                'Join SaidiA',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Create your account to get started',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-
-              Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+      body: Center(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Column(
                   children: [
-                    if (!_isOtpSent) ...[
-                      // Registration Form
-                      _buildTextField(
-                        controller: _nameController,
-                        label: 'Full Name',
-                        icon: Icons.person_outline,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your full name';
-                          }
-                          if (value.trim().split(' ').length < 2) {
-                            return 'Please enter your full name (first and last name)';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildTextField(
-                        controller: _emailController,
-                        label: 'Email Address',
-                        icon: Icons.email_outlined,
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your email address';
-                          }
-                          if (!_isValidEmail(value)) {
-                            return 'Please enter a valid email address';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildTextField(
-                        controller: _phoneController,
-                        label: 'Phone Number',
-                        icon: Icons.phone_outlined,
-                        keyboardType: TextInputType.phone,
-                        hintText: '07xx xxx xxx',
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your phone number';
-                          }
-                          if (!_isValidPhone(value)) {
-                            return 'Please enter a valid phone number (e.g., 07xx xxx xxx)';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildPasswordField(
-                        controller: _passwordController,
-                        label: 'Password',
-                        obscureText: _obscurePassword,
-                        onToggleVisibility: () {
-                          setState(() => _obscurePassword = !_obscurePassword);
-                        },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter a password';
-                          }
-                          if (value.length < 6) {
-                            return 'Password must be at least 6 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildPasswordField(
-                        controller: _confirmPasswordController,
-                        label: 'Confirm Password',
-                        obscureText: _obscureConfirmPassword,
-                        onToggleVisibility: () {
-                          setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
-                        },
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please confirm your password';
-                          }
-                          if (value != _passwordController.text) {
-                            return 'Passwords do not match';
-                          }
-                          return null;
-                        },
-                      ),
-                    ] else ...[
-                      // OTP Verification
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.blue.shade100, width: 1),
-                        ),
-                        child: Column(
-                          children: [
-                            const Icon(
-                              Icons.verified_user_outlined,
-                              size: 80,
-                              color: Colors.blue,
-                            ),
-                            const SizedBox(height: 24),
-                            const Text(
-                              'Verify Phone Number',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Enter the 6-digit OTP sent to',
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: Colors.grey.shade700,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            Text(
-                              _phoneController.text,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.blue,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 32),
-
-                            // Error Message
-                            if (_errorMessage != null)
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                margin: const EdgeInsets.only(bottom: 16),
-                                decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.red.shade200),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.error_outline, color: Colors.red.shade600, size: 20),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        _errorMessage!,
-                                        style: TextStyle(
-                                          color: Colors.red.shade700,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                            // OTP Input
-                            TextFormField(
-                              controller: _otpController,
-                              decoration: InputDecoration(
-                                labelText: 'Enter OTP',
-                                labelStyle: const TextStyle(color: Colors.blue),
-                                prefixIcon: const Icon(Icons.lock_outline, color: Colors.blue),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Colors.grey),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Colors.blue, width: 2),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: Colors.grey),
-                                ),
-                              ),
-                              keyboardType: TextInputType.number,
-                              textAlign: TextAlign.center,
-                              maxLength: 6,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 8,
-                              ),
-                              onChanged: (value) {
-                                if (value.length == 6) {
-                                  _verifyOTP();
-                                }
-                              },
-                            ),
-                            const SizedBox(height: 24),
-
-                            // Action Buttons
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                TextButton.icon(
-                                  onPressed: _backToForm,
-                                  icon: const Icon(Icons.arrow_back_ios_new, size: 16),
-                                  label: const Text('Change Phone'),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.grey.shade700,
-                                  ),
-                                ),
-                                TextButton.icon(
-                                  onPressed: _isLoading ? null : _resendOTP,
-                                  icon: const Icon(Icons.refresh, size: 16),
-                                  label: const Text('Resend OTP'),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.blue,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-
-                    // Error Message for registration form
-                    if (_errorMessage != null && !_isOtpSent)
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(top: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.error_outline, color: Colors.red.shade600, size: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: TextStyle(
-                                  color: Colors.red.shade700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    const SizedBox(height: 32),
-
-                    // Submit Button
-                    SizedBox(
-                      height: 56,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : (_isOtpSent ? _verifyOTP : _submitForm),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                    Container(
+                      width: MediaQuery.of(context).size.width * 0.5,
+                      height: MediaQuery.of(context).size.width * 0.4,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.2),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
-                          elevation: 2,
-                          shadowColor: Colors.blue.shade200,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 24,
-                                width: 24,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                _isOtpSent ? 'Verify OTP' : 'Create Account',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                        ],
                       ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Login Link
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Already have an account?',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton(
-                          onPressed: () => _navigateToLogin(),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          ),
-                          child: const Text(
-                            'Login',
-                            style: TextStyle(
-                              color: Colors.blue,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                      child: Image.asset(
+                        'assets/logos/vertical_with_word.png',
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                // const Text(
+                //   'Join SaidiA',
+                //   style: TextStyle(
+                //     fontSize: 32,
+                //     fontWeight: FontWeight.bold,
+                //     color: Colors.blue,
+                //   ),
+                //   textAlign: TextAlign.center,
+                // ),
+                // const SizedBox(height: 8),
+                const Text(
+                  'Create your account to get started',
+                  style: TextStyle(fontSize: 24, color: Colors.blue, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+        
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!_isOtpSent) ...[
+                        // Registration Form
+                        _buildTextField(
+                          controller: _nameController,
+                          label: 'Full Name',
+                          icon: Icons.person_outline,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter your full name';
+                            }
+                            if (value.trim().split(' ').length < 2) {
+                              return 'Please enter your full name (first and last name)';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _buildTextField(
+                          controller: _emailController,
+                          label: 'Email Address',
+                          icon: Icons.email_outlined,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter your email address';
+                            }
+                            if (!_isValidEmail(value)) {
+                              return 'Please enter a valid email address';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _buildTextField(
+                          controller: _phoneController,
+                          label: 'Phone Number',
+                          icon: Icons.phone_outlined,
+                          keyboardType: TextInputType.phone,
+                          hintText: '07xx xxx xxx',
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter your phone number';
+                            }
+                            if (!_isValidPhone(value)) {
+                              return 'Please enter a valid phone number (e.g., 07xx xxx xxx)';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _buildPasswordField(
+                          controller: _passwordController,
+                          label: 'Password',
+                          obscureText: _obscurePassword,
+                          onToggleVisibility: () {
+                            setState(() => _obscurePassword = !_obscurePassword);
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter a password';
+                            }
+                            if (value.length < 6) {
+                              return 'Password must be at least 6 characters';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        _buildPasswordField(
+                          controller: _confirmPasswordController,
+                          label: 'Confirm Password',
+                          obscureText: _obscureConfirmPassword,
+                          onToggleVisibility: () {
+                            setState(
+                              () => _obscureConfirmPassword =
+                                  !_obscureConfirmPassword,
+                            );
+                          },
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please confirm your password';
+                            }
+                            if (value != _passwordController.text) {
+                              return 'Passwords do not match';
+                            }
+                            return null;
+                          },
+                        ),
+                      ] else ...[
+                        // OTP Verification
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.blue.shade100,
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.verified_user_outlined,
+                                size: 80,
+                                color: Colors.blue,
+                              ),
+                              const SizedBox(height: 24),
+                              const Text(
+                                'Verify Phone Number',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Enter the 6-digit OTP sent to',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey.shade700,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              Text(
+                                _phoneController.text,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.blue,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 32),
+        
+                              // Error Message
+                              if (_errorMessage != null)
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.shade50,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: Colors.red.shade200,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline,
+                                        color: Colors.red.shade600,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          _errorMessage!,
+                                          style: TextStyle(
+                                            color: Colors.red.shade700,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+        
+                              // OTP Input
+                              TextFormField(
+                                controller: _otpController,
+                                decoration: InputDecoration(
+                                  labelText: 'Enter OTP',
+                                  labelStyle: const TextStyle(color: Colors.blue),
+                                  prefixIcon: const Icon(
+                                    Icons.lock_outline,
+                                    color: Colors.blue,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                      color: Colors.blue,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                    borderSide: const BorderSide(
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                                keyboardType: TextInputType.number,
+                                textAlign: TextAlign.center,
+                                maxLength: 6,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 8,
+                                ),
+                                onChanged: (value) {
+                                  if (value.length == 6) {
+                                    _verifyOTP();
+                                  }
+                                },
+                              ),
+                              const SizedBox(height: 24),
+        
+                              // Action Buttons
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: _backToForm,
+                                    icon: const Icon(
+                                      Icons.arrow_back_ios_new,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Change Phone'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                  TextButton.icon(
+                                    onPressed: _isLoading ? null : _resendOTP,
+                                    icon: const Icon(Icons.refresh, size: 16),
+                                    label: const Text('Resend OTP'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.blue,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+        
+                      // Error Message for registration form
+                      if (_errorMessage != null && !_isOtpSent)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(top: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                color: Colors.red.shade600,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: TextStyle(
+                                    color: Colors.red.shade700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+        
+                      const SizedBox(height: 32),
+        
+                      // Submit Button
+                      SizedBox(
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: _isLoading
+                              ? null
+                              : (_isOtpSent ? _verifyOTP : _submitForm),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            elevation: 2,
+                            shadowColor: Colors.blue.shade200,
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Text(
+                                  _isOtpSent ? 'Verify OTP' : 'Create Account',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                        ),
+                      ),
+        
+                      const SizedBox(height: 24),
+        
+                      // Login Link
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Already have an account?',
+                            style: TextStyle(color: Colors.grey),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton(
+                            onPressed: () => _navigateToLogin(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                            ),
+                            child: const Text(
+                              'Login',
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -810,7 +865,9 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
         suffixIcon: IconButton(
           icon: Icon(
-            obscureText ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            obscureText
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
             color: Colors.grey.shade600,
           ),
           onPressed: onToggleVisibility,

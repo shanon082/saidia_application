@@ -15,8 +15,8 @@ class WelcomePage extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF6A11CB), 
                 Color(0xFF2575FC),
+                Color(0xFF6A11CB),
               ],
             ),
           ),
@@ -25,32 +25,33 @@ class WelcomePage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // App Logo / Icon
+                // Custom Logo
                 Container(
-                  padding: const EdgeInsets.all(24),
+                  width: MediaQuery.of( context).size.width * 0.6,
+                  height: MediaQuery.of( context).size.width * 0.6,
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
-                    shape: BoxShape.circle,
+                    // color: Colors.white.withOpacity(0.2),
+                    // shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.handyman, 
-                    size: 120,
-                    color: Colors.white,
+                  child: Image.asset(
+                    'assets/logos/with_tagline_vertical.png',
+                    fit: BoxFit.contain,
                   ),
                 ),
 
-                const SizedBox(height: 40),
+                // const SizedBox(height: 40),
 
-                // App Name
-                const Text(
-                  'SaidiA',
-                  style: TextStyle(
-                    fontSize: 52,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 2,
-                  ),
-                ),
+                // // App Name
+                // const Text(
+                //   'SaidiA',
+                //   style: TextStyle(
+                //     fontSize: 52,
+                //     fontWeight: FontWeight.bold,
+                //     color: Colors.white,
+                //     letterSpacing: 2,
+                //   ),
+                // ),
 
                 const SizedBox(height: 16),
 
@@ -128,11 +129,10 @@ class WelcomePage extends StatelessWidget {
 
                 const SizedBox(height: 40),
 
-                // Optional: Continue as Guest
+                // Continue as Guest
                 TextButton(
                   onPressed: () {
-                    // Navigate to home screen as guest (you can implement later)
-                    // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomePage()));
+                    // Implement guest navigation later
                   },
                   child: const Text(
                     'Continue as Guest',
