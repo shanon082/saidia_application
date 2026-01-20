@@ -1,4 +1,3 @@
-// [file name]: providerDashboard.dart (Updated)
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +5,12 @@ import 'package:saidia_app/auth/loginPage.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/screens/provider/earningspage.dart';
 import 'package:saidia_app/screens/provider/schedulepage.dart';
+import 'package:saidia_app/screens/provider/messagespage.dart';
+import 'package:saidia_app/screens/provider/reviewspage.dart';
+import 'package:saidia_app/screens/provider/analyticspage.dart';
+import 'package:saidia_app/screens/provider/settingspage.dart';
+import 'package:saidia_app/screens/provider/helppage.dart';
+import 'package:saidia_app/screens/provider/notificationspage.dart';
 
 class ProviderDashboard extends StatefulWidget {
   const ProviderDashboard({super.key});
@@ -21,6 +26,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
   late Stream<DocumentSnapshot> _providerDataStream;
   late Stream<QuerySnapshot> _bookingsStream;
   late Stream<QuerySnapshot> _reviewsStream;
+  late Stream<QuerySnapshot> _messagesStream;
 
   @override
   void initState() {
@@ -28,6 +34,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     _providerDataStream = _getProviderDataStream();
     _bookingsStream = _getBookingsStream();
     _reviewsStream = _getReviewsStream();
+    _messagesStream = _getMessagesStream();
   }
 
   Stream<DocumentSnapshot> _getProviderDataStream() {
@@ -54,6 +61,14 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
         .snapshots();
   }
 
+  Stream<QuerySnapshot> _getMessagesStream() {
+    return _firestore
+        .collection('chats')
+        .where('participants', arrayContains: _auth.currentUser!.uid)
+        .orderBy('lastMessageTime', descending: true)
+        .snapshots();
+  }
+
   Future<void> _logout(BuildContext context) async {
     try {
       await FirebaseAuth.instance.signOut();
@@ -64,7 +79,10 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
+        SnackBar(
+          content: Text('Logout failed: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -73,41 +91,118 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Color(0xFF0D47A1),
-        foregroundColor: Colors.white,
-        elevation: 2,
+        title: Text(
+          _selectedIndex == 0 ? 'Dashboard' : 
+          _selectedIndex == 1 ? 'Bookings' : 
+          _selectedIndex == 2 ? 'Messages' : 'Profile',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: Icon(Icons.menu, color: Colors.blue.shade700),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () => _showNotifications(context),
+          Stack(
+            children: [
+              IconButton(
+                icon: Icon(Icons.notifications_outlined, color: Colors.grey.shade700),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => NotificationsPage()),
+                  );
+                },
+              ),
+              Positioned(
+                right: 8,
+                top: 8,
+                child: Container(
+                  padding: EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.red,
+                  ),
+                  constraints: BoxConstraints(minWidth: 16, minHeight: 16),
+                  child: Text(
+                    '3',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
       drawer: _buildDrawer(),
-      body: _selectedIndex == 0 ? _buildDashboard() : _buildBookings(),
-      bottomNavigationBar: BottomNavigationBar(
+      body: _getBody(),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _getBody() {
+    switch (_selectedIndex) {
+      case 0:
+        return _buildDashboard();
+      case 1:
+        return _buildBookings();
+      case 2:
+        return MessagesPage();
+      case 3:
+        return _buildProfile();
+      default:
+        return _buildDashboard();
+    }
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
         backgroundColor: Colors.white,
-        selectedItemColor: Color(0xFF0D47A1),
-        unselectedItemColor: Colors.grey,
-        selectedLabelStyle: const TextStyle(fontSize: 12),
-        items: const [
+        selectedItemColor: Colors.blue.shade700,
+        unselectedItemColor: Colors.grey.shade600,
+        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+        unselectedLabelStyle: TextStyle(fontSize: 12),
+        type: BottomNavigationBarType.fixed,
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard),
+            icon: Icon(Icons.dashboard_outlined),
+            activeIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
+            icon: Icon(Icons.calendar_today_outlined),
+            activeIcon: Icon(Icons.calendar_today),
             label: 'Bookings',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
+            icon: Icon(Icons.chat_outlined),
+            activeIcon: Icon(Icons.chat),
             label: 'Messages',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.person),
+            icon: Icon(Icons.person_outlined),
+            activeIcon: Icon(Icons.person),
             label: 'Profile',
           ),
         ],
@@ -117,205 +212,400 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
 
   Widget _buildDrawer() {
     return Drawer(
-      child: ListView(
+      width: MediaQuery.of(context).size.width * 0.8,
+      child: Column(
         children: [
+          // Header
           StreamBuilder<DocumentSnapshot>(
             stream: _providerDataStream,
             builder: (context, snapshot) {
-              final data = snapshot.data?.data() as Map<String, dynamic>?;
+              if (!snapshot.hasData) {
+                return _buildDrawerHeader('Loading...', 'Loading...', '', 0.0);
+              }
+
+              final data = snapshot.data!.data() as Map<String, dynamic>?;
               final name = data?['specialization'] ?? 'Provider';
               final category = data?['serviceCategory'] ?? 'Service';
               final image = data?['imageUrl'] ?? '';
+              final rate = (data?['hourlyRate'] ?? 0).toDouble();
 
-              return DrawerHeader(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF0D47A1), Color(0xFF1565C0)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: Colors.white,
-                      backgroundImage: image.isNotEmpty
-                          ? NetworkImage(image)
-                          : null,
-                      child: image.isEmpty
-                          ? Icon(
-                              Icons.handyman,
-                              size: 40,
-                              color: Color(0xFF0D47A1),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      category,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 10,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Row(
-                      children: [
-                        const Icon(Icons.star, color: Colors.yellow, size: 16),
-                        const SizedBox(width: 4),
-                        const Text('4.8', style: TextStyle(color: Colors.white)),
-                        const SizedBox(width: 16),
-                        Text(
-                          'UGX ${data?['hourlyRate'] ?? '0'}/hr',
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
+              return _buildDrawerHeader(name, category, image, rate);
             },
           ),
-          _drawerItem(Icons.dashboard, 'Dashboard', () => setState(() => _selectedIndex = 0)),
-          _drawerItem(Icons.calendar_today, 'Schedule', () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => SchedulePage()));
-          }),
-          _drawerItem(Icons.book_online, 'Bookings', () => setState(() => _selectedIndex = 1)),
-          _drawerItem(Icons.chat, 'Messages', () => setState(() => _selectedIndex = 2)),
-          _drawerItem(Icons.attach_money, 'Earnings', () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => EarningsPage()));
-          }),
-          _drawerItem(Icons.star, 'Reviews', () {
-            Navigator.pop(context);
-            _showReviews(context);
-          }),
-          _drawerItem(Icons.analytics, 'Analytics', () {
-            Navigator.pop(context);
-            _showAnalytics(context);
-          }),
-          _drawerItem(Icons.person, 'My Profile', () => setState(() => _selectedIndex = 3)),
-          const Divider(),
-          _drawerItem(Icons.settings, 'Settings', () {
-            Navigator.pop(context);
-            _showSettings(context);
-          }),
-          _drawerItem(Icons.help, 'Help & Support', () {
-            Navigator.pop(context);
-            _showHelp(context);
-          }),
-          const Divider(),
-          _drawerItem(Icons.logout, 'Logout', () => _logout(context), isLogout: true),
+          
+          // Menu Items
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _buildDrawerItem(
+                  icon: Icons.dashboard_outlined,
+                  title: 'Dashboard',
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 0);
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.calendar_today_outlined,
+                  title: 'Schedule',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => SchedulePage()),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.book_online_outlined,
+                  title: 'Bookings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 1);
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.chat_outlined,
+                  title: 'Messages',
+                  badge: '3',
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 2);
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.attach_money_outlined,
+                  title: 'Earnings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => EarningsPage()),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.star_outline,
+                  title: 'Reviews',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => ReviewsPage()),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.analytics_outlined,
+                  title: 'Analytics',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => AnalyticsPage()),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.person_outline,
+                  title: 'My Profile',
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _selectedIndex = 3);
+                  },
+                ),
+                Divider(thickness: 1, height: 32, indent: 20, endIndent: 20),
+                _buildDrawerItem(
+                  icon: Icons.settings_outlined,
+                  title: 'Settings',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => SettingsPage()),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.help_outline,
+                  title: 'Help & Support',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => HelpPage()),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          
+          // Logout
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListTile(
+                leading: Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.logout, color: Colors.red),
+                ),
+                title: Text(
+                  'Logout',
+                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                ),
+                trailing: Icon(Icons.chevron_right, color: Colors.red),
+                onTap: () => _logout(context),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  ListTile _drawerItem(IconData icon, String title, VoidCallback onTap, {bool isLogout = false}) {
+  Widget _buildDrawerHeader(String name, String category, String image, double rate) {
+    return Container(
+      padding: EdgeInsets.only(top: 40, bottom: 20, left: 20, right: 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade800, Colors.lightBlue.shade600],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: 40,
+            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundImage: image.isNotEmpty ? NetworkImage(image) : null,
+            child: image.isEmpty ? Icon(Icons.handyman, size: 50, color: Colors.white) : null,
+          ),
+          SizedBox(height: 16),
+          Text(
+            name,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            category,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 16,
+            ),
+          ),
+          SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.star, color: Colors.yellow, size: 20),
+              SizedBox(width: 4),
+              Text('4.8', style: TextStyle(color: Colors.white, fontSize: 16)),
+              SizedBox(width: 16),
+              Text(
+                'KES ${rate.toInt()}/hr',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    String? badge,
+  }) {
     return ListTile(
-      leading: Icon(icon, color: isLogout ? Colors.red : Color(0xFF0D47A1)),
-      title: Text(title, style: TextStyle(color: isLogout ? Colors.red : Colors.black87)),
+      leading: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: Colors.blue.shade700),
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey.shade800,
+        ),
+      ),
+      trailing: badge != null
+          ? Container(
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                badge,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            )
+          : Icon(Icons.chevron_right, color: Colors.grey.shade400),
       onTap: onTap,
     );
   }
 
   Widget _buildDashboard() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.all(16),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Welcome Card
-          Card(
-            elevation: 3,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Welcome Back!',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF0D47A1),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    DateFormat('EEEE, dd MMMM yyyy').format(DateTime.now()),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _statCard('Today\'s Bookings', '3', Icons.calendar_today, Color(0xFF2196F3)),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _statCard('Pending', '2', Icons.pending, Color(0xFFFF9800)),
-                      ),
-                    ],
-                  ),
-                ],
+          Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade700, Colors.lightBlue.shade400],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withOpacity(0.3),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome Back!',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  DateFormat('EEEE, dd MMMM yyyy').format(DateTime.now()),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _statCard(
+                        'Today\'s Bookings',
+                        '3',
+                        Icons.calendar_today,
+                        Colors.white.withOpacity(0.2),
+                        Colors.white,
+                      ),
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: _statCard(
+                        'Pending',
+                        '2',
+                        Icons.pending,
+                        Colors.white.withOpacity(0.2),
+                        Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
+          SizedBox(height: 24),
 
-          const SizedBox(height: 20),
-
-          // Quick Stats Grid
+          // Quick Stats
+          Text(
+            'Overview',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade900,
+            ),
+          ),
+          SizedBox(height: 16),
           GridView.count(
             shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
+            physics: NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: 1.5,
+            childAspectRatio: 1.2,
             children: [
-              _quickStatCard('Total Bookings', '45', Icons.book_online, Color(0xFF4CAF50)),
-              _quickStatCard('Earnings', 'UGX 12,500', Icons.attach_money, Color(0xFF2196F3)),
-              _quickStatCard('Rating', '4.8', Icons.star, Color(0xFFFF9800)),
-              _quickStatCard('Reviews', '28', Icons.reviews, Color(0xFF9C27B0)),
+              _quickStatCard('Total Bookings', '45', Icons.book_online, Colors.green),
+              _quickStatCard('Earnings', 'KES 12,500', Icons.attach_money, Colors.blue),
+              _quickStatCard('Rating', '4.8', Icons.star, Colors.amber),
+              _quickStatCard('Reviews', '28', Icons.reviews, Colors.purple),
             ],
           ),
-
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // Today's Schedule
-          const Text(
-            "Today's Schedule",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0D47A1),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Today's Schedule",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => SchedulePage()),
+                  );
+                },
+                child: Row(
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(color: Colors.blue.shade700),
+                    ),
+                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.blue.shade700),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           StreamBuilder<QuerySnapshot>(
             stream: _bookingsStream,
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(child: CircularProgressIndicator());
               }
 
               final bookings = snapshot.data!.docs;
@@ -330,31 +620,52 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               }
 
               return Column(
-                children: todayBookings.take(3).map((booking) {
+                children: todayBookings.take(2).map((booking) {
                   final data = booking.data() as Map<String, dynamic>;
                   return _bookingCard(data);
                 }).toList(),
               );
             },
           ),
-
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           // Recent Reviews
-          const Text(
-            "Recent Reviews",
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF0D47A1),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Recent Reviews",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ReviewsPage()),
+                  );
+                },
+                child: Row(
+                  children: [
+                    Text(
+                      'View All',
+                      style: TextStyle(color: Colors.blue.shade700),
+                    ),
+                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.blue.shade700),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           StreamBuilder<QuerySnapshot>(
             stream: _reviewsStream,
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+                return Center(child: CircularProgressIndicator());
               }
 
               final reviews = snapshot.data!.docs;
@@ -364,7 +675,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               }
 
               return Column(
-                children: reviews.map((review) {
+                children: reviews.take(2).map((review) {
                   final data = review.data() as Map<String, dynamic>;
                   return _reviewCard(data);
                 }).toList(),
@@ -376,11 +687,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     );
   }
 
-  Widget _statCard(String title, String value, IconData icon, Color color) {
+  Widget _statCard(String title, String value, IconData icon, Color bgColor, Color color) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.3)),
       ),
@@ -388,7 +699,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: color, size: 30),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             value,
             style: TextStyle(
@@ -397,11 +708,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               color: color,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.grey,
+            style: TextStyle(
+              color: color.withOpacity(0.9),
               fontSize: 14,
             ),
           ),
@@ -411,192 +722,634 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
   }
 
   Widget _quickStatCard(String title, String value, IconData icon, Color color) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 8,
+            offset: Offset(0, 2),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                const Spacer(),
-                const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-              ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade900,
             ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-              ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade600,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _bookingCard(Map<String, dynamic> data) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: Color(0xFF0D47A1),
-          child: Icon(Icons.person, color: Colors.white),
-        ),
-        title: Text(
-          data['customerName'] ?? 'Customer',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${data['date']} • ${data['time']}'),
-            Text(data['details'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
-          ],
-        ),
-        trailing: Chip(
-          label: Text(
-            data['status'] ?? 'pending',
-            style: const TextStyle(fontSize: 10, color: Colors.white),
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
           ),
-          backgroundColor: data['status'] == 'confirmed' ? Colors.green : Colors.orange,
-        ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: Colors.blue.shade100,
+            child: Icon(Icons.person, color: Colors.blue.shade700),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  data['customerName'] ?? 'Customer',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  '${data['date']} • ${data['time']}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  data['details'] ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: (data['status'] == 'confirmed' ? Colors.green : Colors.orange).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              data['status'] ?? 'pending',
+              style: TextStyle(
+                color: data['status'] == 'confirmed' ? Colors.green : Colors.orange,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _reviewCard(Map<String, dynamic> data) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.grey,
-                  child: Icon(Icons.person, size: 16, color: Colors.white),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  data['customerName'] ?? 'Anonymous',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const Spacer(),
-                Row(
-                  children: List.generate(5, (index) => Icon(
-                    Icons.star,
-                    size: 16,
-                    color: index < (data['rating'] ?? 0) ? Colors.yellow : Colors.grey[300],
-                  )),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(data['comment'] ?? ''),
-            const SizedBox(height: 8),
-            Text(
-              DateFormat('dd MMM yyyy').format(
-                (data['timestamp'] as Timestamp).toDate(),
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: Colors.grey.shade200,
+                child: Icon(Icons.person, size: 20, color: Colors.grey.shade600),
               ),
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data['customerName'] ?? 'Anonymous',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Row(
+                      children: List.generate(5, (index) => Icon(
+                        Icons.star,
+                        size: 16,
+                        color: index < (data['rating'] ?? 0) ? Colors.yellow : Colors.grey.shade300,
+                      )),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          Text(
+            data['comment'] ?? '',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade800,
             ),
-          ],
-        ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            DateFormat('dd MMM yyyy').format(
+              (data['timestamp'] as Timestamp).toDate(),
+            ),
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildBookings() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _bookingsStream,
+    return Column(
+      children: [
+        // Filter Tabs
+        Container(
+          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 4,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: ['All', 'Pending', 'Confirmed', 'Completed', 'Cancelled']
+                .map((status) => Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.blue.shade100),
+                        ),
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.blue.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ))
+                .toList(),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: _bookingsStream,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator());
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return _emptyState('No bookings yet', Icons.calendar_today);
+              }
+
+              final bookings = snapshot.data!.docs;
+
+              return ListView.builder(
+                padding: EdgeInsets.all(16),
+                itemCount: bookings.length,
+                itemBuilder: (context, index) {
+                  final data = bookings[index].data() as Map<String, dynamic>;
+                  return _bookingListItem(data);
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _bookingListItem(Map<String, dynamic> data) {
+    return GestureDetector(
+      onTap: () => _showBookingDetails(data),
+      child: Container(
+        margin: EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: Colors.blue.shade100,
+                    child: Icon(Icons.person, color: Colors.blue.shade700, size: 20),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          data['customerName'] ?? 'Customer',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          data['serviceType'] ?? 'General Service',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: (data['status'] == 'confirmed'
+                                  ? Colors.green
+                                  : data['status'] == 'cancelled'
+                                      ? Colors.red
+                                      : Colors.orange)
+                              .withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          data['status'] ?? 'pending',
+                          style: TextStyle(
+                            color: data['status'] == 'confirmed'
+                                ? Colors.green
+                                : data['status'] == 'cancelled'
+                                    ? Colors.red
+                                    : Colors.orange,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'KES ${data['price'] ?? data['hourlyRate'] ?? '0'}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              SizedBox(height: 12),
+              Divider(height: 1, color: Colors.grey.shade200),
+              SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
+                      SizedBox(width: 6),
+                      Text(
+                        data['date'] ?? 'No date',
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                      SizedBox(width: 6),
+                      Text(
+                        data['time'] ?? 'No time',
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              SizedBox(height: 8),
+              Text(
+                data['details'] ?? 'No details provided',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              SizedBox(height: 12),
+              if (data['status'] == 'pending')
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _updateBookingStatus(data['bookingId'] ?? '', 'confirmed'),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          side: BorderSide(color: Colors.green),
+                        ),
+                        child: Text('Confirm', style: TextStyle(color: Colors.green)),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _updateBookingStatus(data['bookingId'] ?? '', 'cancelled'),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          side: BorderSide(color: Colors.red),
+                        ),
+                        child: Text('Cancel', style: TextStyle(color: Colors.red)),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfile() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _providerDataStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return Center(child: CircularProgressIndicator());
         }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _emptyState('No bookings yet', Icons.calendar_today);
-        }
-
-        final bookings = snapshot.data!.docs;
-
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: bookings.length,
-          itemBuilder: (context, index) {
-            final data = bookings[index].data() as Map<String, dynamic>;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: Color(0xFF0D47A1),
-                  child: Icon(Icons.person, color: Colors.white),
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
+        
+        return SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Profile Header
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue.shade700, Colors.lightBlue.shade400],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                title: Text(
-                  data['customerName'] ?? 'Customer',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      backgroundImage: data?['imageUrl'] != null
+                          ? NetworkImage(data!['imageUrl'])
+                          : null,
+                      child: data?['imageUrl'] == null
+                          ? Icon(Icons.handyman, size: 60, color: Colors.white)
+                          : null,
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      data?['specialization'] ?? 'Service Provider',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      data?['serviceCategory'] ?? 'General Service',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.star, color: Colors.yellow, size: 20),
+                        SizedBox(width: 4),
+                        Text('4.8', style: TextStyle(color: Colors.white, fontSize: 16)),
+                        SizedBox(width: 16),
+                        Text(
+                          'KES ${data?['hourlyRate'] ?? '0'}/hr',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                subtitle: Column(
+              ),
+              SizedBox(height: 24),
+
+              // Profile Details
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${data['date']} • ${data['time']}'),
-                    Text(data['details'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis),
-                  ],
-                ),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Chip(
-                      label: Text(
-                        data['status'] ?? 'pending',
-                        style: const TextStyle(fontSize: 10, color: Colors.white),
-                      ),
-                      backgroundColor: data['status'] == 'confirmed' 
-                          ? Colors.green 
-                          : data['status'] == 'cancelled'
-                            ? Colors.red
-                            : Colors.orange,
-                    ),
-                    const SizedBox(height: 4),
                     Text(
-                      'UGX ${data['price'] ?? data['hourlyRate'] ?? '0'}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      'Profile Information',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    _profileDetailItem('Experience', '${data?['experience'] ?? 'N/A'} years'),
+                    _profileDetailItem('City', data?['city'] ?? 'N/A'),
+                    _profileDetailItem('Address', data?['address'] ?? 'N/A'),
+                    _profileDetailItem('Phone', data?['phonenumber'] ?? 'N/A'),
+                    _profileDetailItem('Email', _auth.currentUser?.email ?? 'N/A'),
+                    SizedBox(height: 20),
+                    Text(
+                      'About',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade900,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      data?['description'] ?? 'No description provided.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade700,
+                        height: 1.5,
+                      ),
                     ),
                   ],
                 ),
-                onTap: () => _showBookingDetails(data),
               ),
-            );
-          },
+              SizedBox(height: 24),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        // Edit profile
+                      },
+                      icon: Icon(Icons.edit),
+                      label: Text('Edit Profile'),
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(color: Colors.blue.shade700),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        // Share profile
+                      },
+                      icon: Icon(Icons.share),
+                      label: Text('Share'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 32),
+            ],
+          ),
         );
       },
+    );
+  }
+
+  Widget _profileDetailItem(String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade900,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -605,11 +1358,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 80, color: Colors.grey[300]),
-          const SizedBox(height: 20),
+          Icon(icon, size: 80, color: Colors.grey.shade400),
+          SizedBox(height: 20),
           Text(
             message,
-            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -617,89 +1370,211 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
   }
 
   void _showBookingDetails(Map<String, dynamic> data) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Booking Details'),
-        content: Column(
+      isScrollControlled: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.all(20),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _detailItem('Customer:', data['customerName'] ?? 'N/A'),
-            _detailItem('Date:', data['date'] ?? 'N/A'),
-            _detailItem('Time:', data['time'] ?? 'N/A'),
-            _detailItem('Status:', data['status'] ?? 'pending'),
-            _detailItem('Amount:', 'UGX ${data['price'] ?? data['hourlyRate'] ?? '0'}'),
-            const SizedBox(height: 8),
-            const Text('Details:', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text(data['details'] ?? 'No details provided'),
+            Center(
+              child: Container(
+                width: 60,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: Colors.blue.shade100,
+                  child: Icon(Icons.person, color: Colors.blue.shade700, size: 30),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        data['customerName'] ?? 'Customer',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        data['serviceType'] ?? 'General Service',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: (data['status'] == 'confirmed'
+                            ? Colors.green
+                            : data['status'] == 'cancelled'
+                                ? Colors.red
+                                : Colors.orange)
+                        .withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    data['status'] ?? 'pending',
+                    style: TextStyle(
+                      color: data['status'] == 'confirmed'
+                          ? Colors.green
+                          : data['status'] == 'cancelled'
+                              ? Colors.red
+                              : Colors.orange,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 24),
+            Text(
+              'Booking Details',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade900,
+              ),
+            ),
+            SizedBox(height: 16),
+            _bookingDetailItem(Icons.calendar_today, 'Date', data['date'] ?? 'N/A'),
+            _bookingDetailItem(Icons.access_time, 'Time', data['time'] ?? 'N/A'),
+            _bookingDetailItem(Icons.attach_money, 'Amount', 'KES ${data['price'] ?? data['hourlyRate'] ?? '0'}'),
+            SizedBox(height: 16),
+            Text(
+              'Service Details',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade900,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              data['details'] ?? 'No details provided.',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade700,
+                height: 1.5,
+              ),
+            ),
+            SizedBox(height: 24),
+            if (data['status'] == 'pending')
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _updateBookingStatus(data['bookingId'] ?? '', 'confirmed');
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text('Confirm Booking'),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        _updateBookingStatus(data['bookingId'] ?? '', 'cancelled');
+                        Navigator.pop(context);
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(color: Colors.red),
+                      ),
+                      child: Text('Cancel'),
+                    ),
+                  ),
+                ],
+              ),
+            SizedBox(height: 32),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-          if (data['status'] == 'pending')
-            ElevatedButton(
-              onPressed: () => _updateBookingStatus(data['bookingId'] ?? '', 'confirmed'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              child: const Text('Confirm'),
-            ),
-        ],
       ),
     );
   }
 
-  Widget _detailItem(String label, String value) {
+  Widget _bookingDetailItem(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          Text('$label ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value)),
+          Icon(icon, color: Colors.blue.shade700, size: 20),
+          SizedBox(width: 12),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey.shade700,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey.shade900,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  void _updateBookingStatus(String bookingId, String status) async {
+  Future<void> _updateBookingStatus(String bookingId, String status) async {
     try {
       await _firestore.collection('bookings').doc(bookingId).update({
         'status': status,
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Booking $status'),
-          backgroundColor: Colors.green,
+          content: Text('Booking $status successfully'),
+          backgroundColor: status == 'confirmed' ? Colors.green : Colors.red,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
-  }
-
-  void _showNotifications(BuildContext context) {
-    // TODO: Implement notifications dialog
-  }
-
-  void _showReviews(BuildContext context) {
-    // TODO: Implement reviews page
-  }
-
-  void _showAnalytics(BuildContext context) {
-    // TODO: Implement analytics page
-  }
-
-  void _showSettings(BuildContext context) {
-    // TODO: Implement settings page
-  }
-
-  void _showHelp(BuildContext context) {
-    // TODO: Implement help page
   }
 }
