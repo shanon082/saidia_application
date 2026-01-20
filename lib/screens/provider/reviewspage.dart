@@ -173,7 +173,7 @@ class _ReviewsPageState extends State<ReviewsPage> {
 
             // Filter Buttons
             SingleChildScrollView(
-              scrollDirection: Horizontal,
+              scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
                   _buildFilterChip('All Reviews', true),

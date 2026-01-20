@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
+// import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:intl/intl.dart';
 
 class AnalyticsPage extends StatefulWidget {
@@ -88,7 +88,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 ),
                 _metricCard(
                   'Revenue',
-                  'KES 45,200',
+                  'UGX 45,200',
                   Icons.attach_money,
                   Colors.green,
                   '+18% from last month',
@@ -137,35 +137,35 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                     ),
                   ),
                   SizedBox(height: 16),
-                  Container(
-                    height: 200,
-                    child: SfCartesianChart(
-                      primaryXAxis: CategoryAxis(),
-                      primaryYAxis: NumericAxis(
-                        numberFormat: NumberFormat.compactCurrency(
-                          symbol: 'KES ',
-                          decimalDigits: 0,
-                        ),
-                      ),
-                      series: <ChartSeries>[
-                        LineSeries<ChartData, String>(
-                          dataSource: [
-                            ChartData('Mon', 12000),
-                            ChartData('Tue', 15000),
-                            ChartData('Wed', 18000),
-                            ChartData('Thu', 22000),
-                            ChartData('Fri', 25000),
-                            ChartData('Sat', 28000),
-                            ChartData('Sun', 20000),
-                          ],
-                          xValueMapper: (ChartData data, _) => data.month,
-                          yValueMapper: (ChartData data, _) => data.value,
-                          color: Colors.green,
-                          markerSettings: MarkerSettings(isVisible: true),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Container(
+                  //   height: 200,
+                  //   child: SfCartesianChart(
+                  //     primaryXAxis: CategoryAxis(),
+                  //     primaryYAxis: NumericAxis(
+                  //       numberFormat: NumberFormat.compactCurrency(
+                  //         symbol: 'UGX ',
+                  //         decimalDigits: 0,
+                  //       ),
+                  //     ),
+                  //     series: <ChartSeries>[
+                  //       LineSeries<ChartData, String>(
+                  //         dataSource: [
+                  //           ChartData('Mon', 12000),
+                  //           ChartData('Tue', 15000),
+                  //           ChartData('Wed', 18000),
+                  //           ChartData('Thu', 22000),
+                  //           ChartData('Fri', 25000),
+                  //           ChartData('Sat', 28000),
+                  //           ChartData('Sun', 20000),
+                  //         ],
+                  //         xValueMapper: (ChartData data, _) => data.month,
+                  //         yValueMapper: (ChartData data, _) => data.value,
+                  //         color: Colors.green,
+                  //         markerSettings: MarkerSettings(isVisible: true),
+                  //       ),
+                  //     ],
+                  //   ),
+                  // ),
                 ],
               ),
             ),
@@ -197,26 +197,26 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                     ),
                   ),
                   SizedBox(height: 16),
-                  Container(
-                    height: 200,
-                    child: SfCircularChart(
-                      series: <CircularSeries>[
-                        DoughnutSeries<ServiceData, String>(
-                          dataSource: [
-                            ServiceData('Plumbing', 35, Colors.blue),
-                            ServiceData('Electrical', 25, Colors.green),
-                            ServiceData('Cleaning', 20, Colors.orange),
-                            ServiceData('Carpentry', 15, Colors.purple),
-                            ServiceData('Others', 5, Colors.grey),
-                          ],
-                          xValueMapper: (ServiceData data, _) => data.service,
-                          yValueMapper: (ServiceData data, _) => data.percentage,
-                          pointColorMapper: (ServiceData data, _) => data.color,
-                          dataLabelSettings: DataLabelSettings(isVisible: true),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Container(
+                  //   height: 200,
+                  //   child: SfCircularChart(
+                  //     series: <CircularSeries>[
+                  //       DoughnutSeries<ServiceData, String>(
+                  //         dataSource: [
+                  //           ServiceData('Plumbing', 35, Colors.blue),
+                  //           ServiceData('Electrical', 25, Colors.green),
+                  //           ServiceData('Cleaning', 20, Colors.orange),
+                  //           ServiceData('Carpentry', 15, Colors.purple),
+                  //           ServiceData('Others', 5, Colors.grey),
+                  //         ],
+                  //         xValueMapper: (ServiceData data, _) => data.service,
+                  //         yValueMapper: (ServiceData data, _) => data.percentage,
+                  //         pointColorMapper: (ServiceData data, _) => data.color,
+                  //         dataLabelSettings: DataLabelSettings(isVisible: true),
+                  //       ),
+                  //     ],
+                  //   ),
+                  // ),
                 ],
               ),
             ),

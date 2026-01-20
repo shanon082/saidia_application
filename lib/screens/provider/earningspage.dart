@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
+// import 'package:syncfusion_flutter_charts/charts.dart';
 
 class EarningsPage extends StatefulWidget {
   const EarningsPage({super.key});
@@ -104,7 +104,7 @@ class _EarningsPageState extends State<EarningsPage> {
                 Expanded(
                   child: _buildSummaryCard(
                     'Total Earnings',
-                    'KES ${NumberFormat('#,###').format(totalEarnings)}',
+                    'UGX ${NumberFormat('#,###').format(totalEarnings)}',
                     Icons.attach_money,
                     Colors.blue,
                   ),
@@ -113,7 +113,7 @@ class _EarningsPageState extends State<EarningsPage> {
                 Expanded(
                   child: _buildSummaryCard(
                     'Available',
-                    'KES ${NumberFormat('#,###').format(completedEarnings)}',
+                    'UGX ${NumberFormat('#,###').format(completedEarnings)}',
                     Icons.check_circle,
                     Colors.green,
                   ),
@@ -126,7 +126,7 @@ class _EarningsPageState extends State<EarningsPage> {
                 Expanded(
                   child: _buildSummaryCard(
                     'Pending',
-                    'KES ${NumberFormat('#,###').format(pendingEarnings)}',
+                    'UGX ${NumberFormat('#,###').format(pendingEarnings)}',
                     Icons.pending,
                     Colors.orange,
                   ),
@@ -214,21 +214,21 @@ class _EarningsPageState extends State<EarningsPage> {
                     ),
                   ),
                   SizedBox(height: 16),
-                  Container(
-                    height: 200,
-                    child: SfCartesianChart(
-                      primaryXAxis: CategoryAxis(),
-                      series: <ChartSeries<ChartData, String>>[
-                        ColumnSeries<ChartData, String>(
-                          dataSource: _earningsData,
-                          xValueMapper: (ChartData data, _) => data.month,
-                          yValueMapper: (ChartData data, _) => data.value,
-                          color: Colors.blue.shade700,
-                          borderRadius: BorderRadius.circular(4),
-                        )
-                      ],
-                    ),
-                  ),
+                  // Container(
+                  //   height: 200,
+                  //   child: SfCartesianChart(
+                  //     primaryXAxis: CategoryAxis(),
+                  //     series: <ChartSeries<ChartData, String>>[
+                  //       ColumnSeries<ChartData, String>(
+                  //         dataSource: _earningsData,
+                  //         xValueMapper: (ChartData data, _) => data.month,
+                  //         yValueMapper: (ChartData data, _) => data.value,
+                  //         color: Colors.blue.shade700,
+                  //         borderRadius: BorderRadius.circular(4),
+                  //       )
+                  //     ],
+                  //   ),
+                  // ),
                 ],
               ),
             ),
@@ -385,7 +385,7 @@ class _EarningsPageState extends State<EarningsPage> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'KES ${NumberFormat('#,###').format(transaction.amount)}',
+                'UGX ${NumberFormat('#,###').format(transaction.amount)}',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,

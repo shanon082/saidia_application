@@ -33,7 +33,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
     {
       'id': '3',
       'title': 'Payment Received',
-      'message': 'KES 2,500 has been credited to your account',
+      'message': 'UGX 2,500 has been credited to your account',
       'time': DateTime.now().subtract(Duration(days: 1)),
       'type': 'payment',
       'read': true,

@@ -417,7 +417,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               Text('4.8', style: TextStyle(color: Colors.white, fontSize: 16)),
               SizedBox(width: 16),
               Text(
-                'KES ${rate.toInt()}/hr',
+                'UGX ${rate.toInt()}/hr',
                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
@@ -562,7 +562,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
             childAspectRatio: 1.2,
             children: [
               _quickStatCard('Total Bookings', '45', Icons.book_online, Colors.green),
-              _quickStatCard('Earnings', 'KES 12,500', Icons.attach_money, Colors.blue),
+              _quickStatCard('Earnings', 'UGX 12,500', Icons.attach_money, Colors.blue),
               _quickStatCard('Rating', '4.8', Icons.star, Colors.amber),
               _quickStatCard('Reviews', '28', Icons.reviews, Colors.purple),
             ],
@@ -1065,7 +1065,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'KES ${data['price'] ?? data['hourlyRate'] ?? '0'}',
+                        'UGX ${data['price'] ?? data['hourlyRate'] ?? '0'}',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1215,7 +1215,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                         Text('4.8', style: TextStyle(color: Colors.white, fontSize: 16)),
                         SizedBox(width: 16),
                         Text(
-                          'KES ${data?['hourlyRate'] ?? '0'}/hr',
+                          'UGX ${data?['hourlyRate'] ?? '0'}/hr',
                           style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                       ],
@@ -1460,7 +1460,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
             SizedBox(height: 16),
             _bookingDetailItem(Icons.calendar_today, 'Date', data['date'] ?? 'N/A'),
             _bookingDetailItem(Icons.access_time, 'Time', data['time'] ?? 'N/A'),
-            _bookingDetailItem(Icons.attach_money, 'Amount', 'KES ${data['price'] ?? data['hourlyRate'] ?? '0'}'),
+            _bookingDetailItem(Icons.attach_money, 'Amount', 'UGX ${data['price'] ?? data['hourlyRate'] ?? '0'}'),
             SizedBox(height: 16),
             Text(
               'Service Details',
