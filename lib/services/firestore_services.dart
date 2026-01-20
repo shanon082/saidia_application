@@ -86,60 +86,6 @@ class FirestoreService {
     }
   }
 
-  // Submit provider application
-  // Future<void> submitProviderApplication({
-  //   required String serviceCategory,
-  //   required String specialization,
-  //   required String experience,
-  //   required String description,
-  //   required String phonenumber,
-  //   required String imageUrl,
-  //   required String city,
-  //   required String address,
-  //   required String hourlyRate,
-  //   required List<String> serviceAreas,
-  //   required List<String> workingDays,
-  //   required String idFront,
-  //   required String idBack,
-  //   required String certificate,
-  // }) async {
-  //   if (currentUid == null) {
-  //     throw Exception('User not authenticated');
-  //   }
-
-  //   try {
-  //     final user = _auth.currentUser!;
-
-  //     await _firestore.collection('provider_applications').doc(currentUid).set({
-  //       'userId': currentUid,
-  //       'userEmail': user.email ?? '',
-  //       'serviceCategory': serviceCategory,
-  //       'specialization': specialization,
-  //       'experience': experience,
-  //       'description': description,
-  //       'phonenumber': phonenumber,
-  //       'imageUrl': imageUrl,
-  //       'city': city,
-  //       'address': address,
-  //       'hourlyRate': hourlyRate,
-  //       'serviceAreas': serviceAreas,
-  //       'workingDays': workingDays,
-  //       'idFront': idFront,
-  //       'idBack': idBack,
-  //       'certificate': certificate,
-  //       'status': 'pending',
-  //       'appliedAt': FieldValue.serverTimestamp(),
-  //     });
-
-  //     print('Provider application submitted for UID: $currentUid');
-  //   } catch (e, stackTrace) {
-  //     print('Error submitting provider application: $e');
-  //     print('Stack trace: $stackTrace');
-  //     rethrow;
-  //   }
-  // }
-
-  // Apply as provider (update user document)
   Future<void> applyAsProvider() async {
     if (currentUid == null) {
       throw Exception('User not authenticated');
@@ -374,7 +320,7 @@ class FirestoreService {
     }
   }
 
-  // New: Create a booking
+  // Create a booking
   Future<void> createBooking({
     required String providerId,
     required String date,
@@ -402,7 +348,7 @@ class FirestoreService {
     }
   }
 
-  // New: Send a chat message
+  // Send a chat message
   Future<void> sendMessage({
     required String providerId,
     required String message,
@@ -429,7 +375,7 @@ class FirestoreService {
     }
   }
 
-  // New: Get chat messages stream
+  // Get chat messages stream
   Stream<QuerySnapshot> getChatStream(String providerId) {
     if (currentUid == null) {
       return Stream.empty();

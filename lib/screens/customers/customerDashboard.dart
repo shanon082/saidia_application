@@ -21,8 +21,35 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SaidiA - Find Services'),
-        centerTitle: true,
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                // color: Colors.white.withOpacity(0.2),
+                // shape: BoxShape.circle,
+              ),
+              child: Image.asset(
+                'assets/logos/rounded_logo_tp.png',
+                fit: BoxFit.contain,
+              ),
+            ),
+            // Text('SaidiA'),
+            SearchBar(
+              hintText: 'Search your category',
+              leading: Icon(Icons.search, size: 10),
+            ),
+            IconButton(
+              onPressed: () => {},
+              icon: Icon(
+                Icons.notification_important_rounded,
+                color: Colors.red,
+              ),
+            ),
+          ],
+        ),
       ),
       drawer: Drawer(
         child: ListView(
@@ -90,36 +117,38 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
         child: Column(
           children: [
             // Prominent Become Provider Button
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BecomeProviderPage()),
-                  );
-                },
-                icon: const Icon(Icons.handyman, size: 28),
-                label: const Text(
-                  'Become a Service Provider',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Choose a Service Category',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
+            // SizedBox(
+            //   width: double.infinity,
+            //   height: 56,
+            //   child: ElevatedButton.icon(
+            //     onPressed: () {
+            //       Navigator.push(
+            //         context,
+            //         MaterialPageRoute(
+            //           builder: (_) => const BecomeProviderPage(),
+            //         ),
+            //       );
+            //     },
+            //     icon: const Icon(Icons.handyman, size: 28),
+            //     label: const Text(
+            //       'Become a Service Provider',
+            //       style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            //     ),
+            //     style: ElevatedButton.styleFrom(
+            //       backgroundColor: Colors.green,
+            //       foregroundColor: Colors.white,
+            //       shape: RoundedRectangleBorder(
+            //         borderRadius: BorderRadius.circular(12),
+            //       ),
+            //     ),
+            //   ),
+            // ),
+            // const SizedBox(height: 24),
+            // const Text(
+            //   'Choose a Service Category',
+            //   style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            // ),
+            // const SizedBox(height: 16),
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
@@ -156,7 +185,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     'Gardening',
                     'https://africasolutionsmediahub.org/wp-content/uploads/2024/01/Kenyas-gardening-teacher-1-scaled.jpg',
                   ),
-                  // Add more categories as needed
                 ],
               ),
             ),
@@ -166,7 +194,11 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     );
   }
 
-  Widget _buildCategoryCard(BuildContext context, String category, String imageUrl) {
+  Widget _buildCategoryCard(
+    BuildContext context,
+    String category,
+    String imageUrl,
+  ) {
     return InkWell(
       onTap: () {
         Navigator.push(
@@ -237,9 +269,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
         (route) => false,
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logout failed: $e')));
     }
   }
 }

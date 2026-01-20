@@ -57,7 +57,7 @@ class ServicesListPage extends StatelessWidget {
                       ? Image.network(businessImages[0], width: 60, height: 60, fit: BoxFit.cover)
                       : const Icon(Icons.handyman, size: 50),
                   title: Text(data['specialization'] ?? 'Service Provider'),
-                  subtitle: Text('${data['serviceCategory']} • KES ${data['hourlyRate']}/hr'),
+                  subtitle: Text('${data['serviceCategory']} • UGX ${data['hourlyRate']}/hr'),
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: () {
                     Navigator.push(

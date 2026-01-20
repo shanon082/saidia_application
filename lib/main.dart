@@ -23,7 +23,7 @@ class MyApp extends StatelessWidget {
       title: 'SaidiA App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 73, 4, 192)),
         useMaterial3: true,
       ),
       home: const SplashScreen(),

@@ -73,7 +73,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Provider Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Color(0xFF0D47A1),
         foregroundColor: Colors.white,
         elevation: 2,
@@ -177,7 +177,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                         const Text('4.8', style: TextStyle(color: Colors.white)),
                         const SizedBox(width: 16),
                         Text(
-                          'KES ${data?['hourlyRate'] ?? '0'}/hr',
+                          'UGX ${data?['hourlyRate'] ?? '0'}/hr',
                           style: const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],

@@ -40,19 +40,6 @@ class WelcomePage extends StatelessWidget {
                   ),
                 ),
 
-                // const SizedBox(height: 40),
-
-                // // App Name
-                // const Text(
-                //   'SaidiA',
-                //   style: TextStyle(
-                //     fontSize: 52,
-                //     fontWeight: FontWeight.bold,
-                //     color: Colors.white,
-                //     letterSpacing: 2,
-                //   ),
-                // ),
-
                 const SizedBox(height: 16),
 
                 // Tagline

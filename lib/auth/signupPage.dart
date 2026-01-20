@@ -407,16 +407,6 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                // const Text(
-                //   'Join SaidiA',
-                //   style: TextStyle(
-                //     fontSize: 32,
-                //     fontWeight: FontWeight.bold,
-                //     color: Colors.blue,
-                //   ),
-                //   textAlign: TextAlign.center,
-                // ),
-                // const SizedBox(height: 8),
                 const Text(
                   'Create your account to get started',
                   style: TextStyle(fontSize: 24, color: Colors.blue, fontWeight: FontWeight.bold),
