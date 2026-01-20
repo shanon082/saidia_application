@@ -252,7 +252,7 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
               // Hourly Rate
               TextFormField(
                 decoration: const InputDecoration(
-                  labelText: 'Hourly Rate (KES)',
+                  labelText: 'Hourly Rate (UGX)',
                   hintText: 'e.g., 500',
                   border: OutlineInputBorder(),
                 ),

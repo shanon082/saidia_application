@@ -157,7 +157,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       name,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
+                        fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -166,7 +166,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       category,
                       style: const TextStyle(
                         color: Colors.white70,
-                        fontSize: 14,
+                        fontSize: 10,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -293,7 +293,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
             childAspectRatio: 1.5,
             children: [
               _quickStatCard('Total Bookings', '45', Icons.book_online, Color(0xFF4CAF50)),
-              _quickStatCard('Earnings', 'KES 12,500', Icons.attach_money, Color(0xFF2196F3)),
+              _quickStatCard('Earnings', 'UGX 12,500', Icons.attach_money, Color(0xFF2196F3)),
               _quickStatCard('Rating', '4.8', Icons.star, Color(0xFFFF9800)),
               _quickStatCard('Reviews', '28', Icons.reviews, Color(0xFF9C27B0)),
             ],
@@ -586,7 +586,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'KES ${data['price'] ?? data['hourlyRate'] ?? '0'}',
+                      'UGX ${data['price'] ?? data['hourlyRate'] ?? '0'}',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -629,7 +629,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
             _detailItem('Date:', data['date'] ?? 'N/A'),
             _detailItem('Time:', data['time'] ?? 'N/A'),
             _detailItem('Status:', data['status'] ?? 'pending'),
-            _detailItem('Amount:', 'KES ${data['price'] ?? data['hourlyRate'] ?? '0'}'),
+            _detailItem('Amount:', 'UGX ${data['price'] ?? data['hourlyRate'] ?? '0'}'),
             const SizedBox(height: 8),
             const Text('Details:', style: TextStyle(fontWeight: FontWeight.bold)),
             Text(data['details'] ?? 'No details provided'),
