@@ -326,6 +326,7 @@ class FirestoreService {
     required String date,
     required String time,
     required String details,
+    required String serviceType,  // Add this parameter
   }) async {
     if (currentUid == null) {
       throw Exception('User not authenticated');
@@ -338,6 +339,7 @@ class FirestoreService {
         'date': date,
         'time': time,
         'details': details,
+        'serviceType': serviceType,  // Add this field
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });

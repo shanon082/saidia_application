@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:saidia_app/screens/customers/bookingPage.dart';
 import 'package:saidia_app/screens/customers/chatPage.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:smooth_star_rating_null_safety/smooth_star_rating_null_safety.dart';
 
 class ServiceDetailPage extends StatelessWidget {
   final String providerId;
@@ -24,148 +25,178 @@ class ServiceDetailPage extends StatelessWidget {
     final List<String> businessImages = (data['businessImages'] as List<dynamic>?)?.cast<String>() ?? [];
     final String profileImage = data['imageUrl'] ?? '';
     final String phone = data['phonenumber'] ?? 'Not provided';
+    final double rating = 4.8; // You can fetch this from reviews
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(data['specialization'] ?? 'Provider Details'),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Provider Header with Profile Image
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Colors.blue,
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundImage: profileImage.isNotEmpty
-                        ? NetworkImage(profileImage)
-                        : null,
-                    child: profileImage.isEmpty
-                        ? const Icon(Icons.person, size: 50)
-                        : null,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          data['specialization'] ?? 'Service Provider',
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          category,
-                          style: const TextStyle(fontSize: 18, color: Colors.white70),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.star, color: Colors.yellow, size: 20),
-                            const Text(' 4.8', style: TextStyle(color: Colors.white, fontSize: 16)),
-                            const SizedBox(width: 16),
-                            Text(
-                              'KES ${data['hourlyRate'] ?? 'N/A'}/hr',
-                              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+      body: CustomScrollView(
+        slivers: [
+          // App Bar
+          SliverAppBar(
+            expandedHeight: 250,
+            floating: false,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              background: businessImages.isNotEmpty
+                  ? CarouselSlider(
+                      options: CarouselOptions(
+                        height: 250,
+                        autoPlay: true,
+                        viewportFraction: 1.0,
+                      ),
+                      items: businessImages.map((url) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            image: DecorationImage(
+                              image: NetworkImage(url),
+                              fit: BoxFit.cover,
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Business Images Carousel
-            if (businessImages.isNotEmpty)
-              CarouselSlider(
-                options: CarouselOptions(
-                  height: 220,
-                  autoPlay: true,
-                  enlargeCenterPage: true,
-                  aspectRatio: 16 / 9,
-                  viewportFraction: 0.8,
-                ),
-                items: businessImages.map((url) {
-                  return Builder(
-                    builder: (BuildContext context) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          image: DecorationImage(
-                            image: NetworkImage(url),
-                            fit: BoxFit.cover,
                           ),
-                        ),
-                      );
-                    },
-                  );
-                }).toList(),
-              ),
-
-            if (businessImages.isEmpty)
-              Container(
-                height: 200,
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(16),
+                        );
+                      }).toList(),
+                    )
+                  : Container(
+                      color: Colors.blue.shade100,
+                      child: Icon(Icons.handyman, size: 100, color: Colors.blue),
+                    ),
+            ),
+            actions: [
+              IconButton(
+                icon: Container(
+                  padding: EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.share, color: Colors.blue.shade700),
                 ),
-                child: const Center(
-                  child: Text('No business images available', style: TextStyle(fontSize: 16)),
-                ),
+                onPressed: () {},
               ),
+              IconButton(
+                icon: Container(
+                  padding: EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.bookmark_border, color: Colors.blue.shade700),
+                ),
+                onPressed: () {},
+              ),
+            ],
+          ),
 
-            const SizedBox(height: 24),
-
-            // Details Section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('About', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  Text(data['description'] ?? 'No description provided.', style: const TextStyle(fontSize: 16)),
-
-                  const SizedBox(height: 16),
-                  _buildInfoRow(Icons.timeline, 'Experience', '${data['experience'] ?? 'N/A'} years'),
-
-                  _buildInfoRow(Icons.location_city, 'City', data['city'] ?? 'N/A'),
-
-                  _buildInfoRow(Icons.location_on, 'Address', data['address'] ?? 'N/A'),
-
-                  _buildInfoRow(Icons.access_time, 'Working Days', (data['workingDays'] as List?)?.join(', ') ?? 'N/A'),
-
-                  const SizedBox(height: 8),
-                  InkWell(
-                    onTap: () => _launchPhone(phone),
-                    child: _buildInfoRow(Icons.phone, 'Phone', phone, color: Colors.green),
+                  // Provider Info Card
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundImage: profileImage.isNotEmpty
+                                ? NetworkImage(profileImage)
+                                : null,
+                            child: profileImage.isEmpty
+                                ? Icon(Icons.person, size: 40, color: Colors.grey)
+                                : null,
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  data['specialization'] ?? 'Service Provider',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  category,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    SmoothStarRating(
+                                      rating: rating,
+                                      size: 20,
+                                      filledIconData: Icons.star,
+                                      halfFilledIconData: Icons.star_half,
+                                      defaultIconData: Icons.star_border,
+                                      color: Colors.amber,
+                                      borderColor: Colors.amber,
+                                      starCount: 5,
+                                      allowHalfRating: true,
+                                      spacing: 2.0,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      '$rating (128 reviews)',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
 
-                  const SizedBox(height: 32),
+                  SizedBox(height: 24),
 
-                  // Action Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
+                  // Price & Action Section
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Starting from',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'UGX ${data['hourlyRate'] ?? 'N/A'}/hr',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        ElevatedButton.icon(
                           onPressed: () {
                             Navigator.push(
                               context,
@@ -174,18 +205,86 @@ class ServiceDetailPage extends StatelessWidget {
                               ),
                             );
                           },
-                          icon: const Icon(Icons.calendar_today),
-                          label: const Text('Book Service', style: TextStyle(fontSize: 18)),
+                          icon: Icon(Icons.calendar_today, size: 20),
+                          label: Text('Book Now'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            backgroundColor: Colors.blue.shade700,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: 24),
+
+                  // About Section
+                  Text(
+                    'About Service',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    data['description'] ?? 'No description provided.',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade700,
+                      height: 1.5,
+                    ),
+                  ),
+
+                  SizedBox(height: 24),
+
+                  // Details Grid
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    childAspectRatio: 3,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 12,
+                    children: [
+                      _buildDetailItem(
+                        icon: Icons.timeline,
+                        label: 'Experience',
+                        value: '${data['experience'] ?? 'N/A'} years',
                       ),
-                      const SizedBox(width: 16),
+                      _buildDetailItem(
+                        icon: Icons.location_city,
+                        label: 'City',
+                        value: data['city'] ?? 'N/A',
+                      ),
+                      _buildDetailItem(
+                        icon: Icons.access_time,
+                        label: 'Availability',
+                        value: 'Mon - Fri',
+                      ),
+                      InkWell(
+                        onTap: () => _launchPhone(phone),
+                        child: _buildDetailItem(
+                          icon: Icons.phone,
+                          label: 'Contact',
+                          value: phone,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 32),
+
+                  // Action Buttons
+                  Row(
+                    children: [
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: OutlinedButton.icon(
                           onPressed: () {
                             Navigator.push(
                               context,
@@ -194,94 +293,87 @@ class ServiceDetailPage extends StatelessWidget {
                               ),
                             );
                           },
-                          icon: const Icon(Icons.chat),
-                          label: const Text('Chat Now', style: TextStyle(fontSize: 18)),
+                          icon: Icon(Icons.chat_outlined),
+                          label: Text('Chat Now'),
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            side: BorderSide(color: Colors.blue.shade700),
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _launchPhone(phone),
+                          icon: Icon(Icons.call),
+                          label: Text('Call Now'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 40),
-
-                  // Related Providers Section
-                  Text('Other Providers in $category', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-
-                  StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('provider_applications')
-                        .where('status', isEqualTo: 'approved')
-                        .where('serviceCategory', isEqualTo: category)
-                        .limit(5)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return const Text('No other providers in this category');
-                      }
-
-                      final related = snapshot.data!.docs.where((doc) => doc.id != providerId).toList();
-
-                      if (related.isEmpty) {
-                        return const Text('No other providers in this category');
-                      }
-
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: related.length,
-                        itemBuilder: (context, index) {
-                          final relData = related[index].data() as Map<String, dynamic>;
-                          final relId = related[index].id;
-                          final relImages = (relData['businessImages'] as List?)?.cast<String>() ?? [];
-
-                          return Card(
-                            margin: const EdgeInsets.symmetric(vertical: 8),
-                            child: ListTile(
-                              leading: relImages.isNotEmpty
-                                  ? Image.network(relImages[0], width: 60, height: 60, fit: BoxFit.cover)
-                                  : const Icon(Icons.handyman),
-                              title: Text(relData['specialization'] ?? 'Provider'),
-                              subtitle: Text('KES ${relData['hourlyRate'] ?? 'N/A'}/hr'),
-                              onTap: () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => ServiceDetailPage(providerId: relId, data: relData),
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                  SizedBox(height: 40),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+  Widget _buildDetailItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    Color? color,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
       child: Row(
         children: [
-          Icon(icon, color: color ?? Colors.blue),
-          const SizedBox(width: 12),
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          Expanded(child: Text(value, style: TextStyle(fontSize: 16, color: color))),
+          Icon(icon, color: color ?? Colors.blue.shade700, size: 20),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: color ?? Colors.grey.shade800,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
