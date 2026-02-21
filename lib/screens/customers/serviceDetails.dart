@@ -1,16 +1,79 @@
 import 'package:flutter/material.dart';
-// import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:saidia_app/screens/customers/bookingPage.dart';
 import 'package:saidia_app/screens/customers/chatPage.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:smooth_star_rating_null_safety/smooth_star_rating_null_safety.dart';
 
-class ServiceDetailPage extends StatelessWidget {
+class ServiceDetailPage extends StatefulWidget {
   final String providerId;
   final Map<String, dynamic> data;
 
-  const ServiceDetailPage({super.key, required this.providerId, required this.data});
+  const ServiceDetailPage({
+    super.key,
+    required this.providerId,
+    required this.data,
+  });
+
+  @override
+  State<ServiceDetailPage> createState() => _ServiceDetailPageState();
+}
+
+class _ServiceDetailPageState extends State<ServiceDetailPage> {
+  final FirestoreService _service = FirestoreService();
+  bool _isSaved = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedState();
+  }
+
+  Future<void> _loadSavedState() async {
+    final saved = await _service.isServiceSaved(widget.providerId);
+    if (mounted) {
+      setState(() => _isSaved = saved);
+    }
+  }
+
+  Future<void> _toggleSaved() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+
+    try {
+      if (_isSaved) {
+        await _service.unsaveService(widget.providerId);
+      } else {
+        await _service.saveService(
+          providerId: widget.providerId,
+          providerData: widget.data,
+        );
+      }
+
+      if (mounted) {
+        setState(() => _isSaved = !_isSaved);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isSaved ? 'Service saved' : 'Service removed from saved',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   Future<void> _launchPhone(String phone) async {
     final Uri launchUri = Uri(scheme: 'tel', path: phone);
@@ -21,16 +84,16 @@ class ServiceDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String category = data['serviceCategory'] ?? 'Service';
-    final List<String> businessImages = (data['businessImages'] as List<dynamic>?)?.cast<String>() ?? [];
-    final String profileImage = data['imageUrl'] ?? '';
-    final String phone = data['phonenumber'] ?? 'Not provided';
-    final double rating = 4.8; // You can fetch this from reviews
+    final String category = widget.data['serviceCategory'] ?? 'Service';
+    final List<String> businessImages =
+        (widget.data['businessImages'] as List<dynamic>?)?.cast<String>() ?? [];
+    final String profileImage = widget.data['imageUrl'] ?? '';
+    final String phone = widget.data['phonenumber'] ?? 'Not provided';
+    final double rating = (widget.data['rating'] as num?)?.toDouble() ?? 4.8;
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // App Bar
           SliverAppBar(
             expandedHeight: 250,
             floating: false,
@@ -56,42 +119,38 @@ class ServiceDetailPage extends StatelessWidget {
                     )
                   : Container(
                       color: Colors.blue.shade100,
-                      child: Icon(Icons.handyman, size: 100, color: Colors.blue),
+                      child: const Icon(
+                        Icons.handyman,
+                        size: 100,
+                        color: Colors.blue,
+                      ),
                     ),
             ),
             actions: [
               IconButton(
                 icon: Container(
-                  padding: EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.9),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.share, color: Colors.blue.shade700),
-                ),
-                onPressed: () {},
-              ),
-              IconButton(
-                icon: Container(
-                  padding: EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
-                    shape: BoxShape.circle,
+                  child: Icon(
+                    Icons.bookmark,
+                    color: _isSaved
+                        ? Colors.blue.shade700
+                        : Colors.grey.shade600,
                   ),
-                  child: Icon(Icons.bookmark_border, color: Colors.blue.shade700),
                 ),
-                onPressed: () {},
+                onPressed: _toggleSaved,
               ),
             ],
           ),
-
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Provider Info Card
                   Card(
                     elevation: 2,
                     shape: RoundedRectangleBorder(
@@ -107,22 +166,27 @@ class ServiceDetailPage extends StatelessWidget {
                                 ? NetworkImage(profileImage)
                                 : null,
                             child: profileImage.isEmpty
-                                ? Icon(Icons.person, size: 40, color: Colors.grey)
+                                ? const Icon(
+                                    Icons.person,
+                                    size: 40,
+                                    color: Colors.grey,
+                                  )
                                 : null,
                           ),
-                          SizedBox(width: 16),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  data['specialization'] ?? 'Service Provider',
-                                  style: TextStyle(
+                                  widget.data['specialization'] ??
+                                      'Service Provider',
+                                  style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                SizedBox(height: 4),
+                                const SizedBox(height: 4),
                                 Text(
                                   category,
                                   style: TextStyle(
@@ -130,7 +194,7 @@ class ServiceDetailPage extends StatelessWidget {
                                     color: Colors.grey.shade600,
                                   ),
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
                                 Row(
                                   children: [
                                     SmoothStarRating(
@@ -145,9 +209,9 @@ class ServiceDetailPage extends StatelessWidget {
                                       allowHalfRating: true,
                                       spacing: 2.0,
                                     ),
-                                    SizedBox(width: 8),
+                                    const SizedBox(width: 8),
                                     Text(
-                                      '$rating (128 reviews)',
+                                      '$rating (${widget.data['reviewCount'] ?? 0} reviews)',
                                       style: TextStyle(
                                         color: Colors.grey.shade600,
                                         fontSize: 14,
@@ -162,12 +226,9 @@ class ServiceDetailPage extends StatelessWidget {
                       ),
                     ),
                   ),
-
-                  SizedBox(height: 24),
-
-                  // Price & Action Section
+                  const SizedBox(height: 24),
                   Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.blue.shade50,
                       borderRadius: BorderRadius.circular(16),
@@ -185,9 +246,9 @@ class ServiceDetailPage extends StatelessWidget {
                                 color: Colors.grey.shade600,
                               ),
                             ),
-                            SizedBox(height: 4),
+                            const SizedBox(height: 4),
                             Text(
-                              'UGX ${data['hourlyRate'] ?? 'N/A'}/hr',
+                              'UGX ${widget.data['hourlyRate'] ?? 'N/A'}/hr',
                               style: TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
@@ -201,16 +262,23 @@ class ServiceDetailPage extends StatelessWidget {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => BookingPage(providerId: providerId),
+                                builder: (_) => BookingPage(
+                                  providerId: widget.providerId,
+                                  providerName: widget.data['specialization']
+                                      ?.toString(),
+                                ),
                               ),
                             );
                           },
-                          icon: Icon(Icons.calendar_today, size: 20),
-                          label: Text('Book Now'),
+                          icon: const Icon(Icons.calendar_today, size: 20),
+                          label: const Text('Book Now'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue.shade700,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -219,33 +287,24 @@ class ServiceDetailPage extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                  SizedBox(height: 24),
-
-                  // About Section
-                  Text(
+                  const SizedBox(height: 24),
+                  const Text(
                     'About Service',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   Text(
-                    data['description'] ?? 'No description provided.',
+                    widget.data['description'] ?? 'No description provided.',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey.shade700,
                       height: 1.5,
                     ),
                   ),
-
-                  SizedBox(height: 24),
-
-                  // Details Grid
+                  const SizedBox(height: 24),
                   GridView.count(
                     shrinkWrap: true,
-                    physics: NeverScrollableScrollPhysics(),
+                    physics: const NeverScrollableScrollPhysics(),
                     crossAxisCount: 2,
                     childAspectRatio: 3,
                     crossAxisSpacing: 16,
@@ -254,12 +313,12 @@ class ServiceDetailPage extends StatelessWidget {
                       _buildDetailItem(
                         icon: Icons.timeline,
                         label: 'Experience',
-                        value: '${data['experience'] ?? 'N/A'} years',
+                        value: '${widget.data['experience'] ?? 'N/A'} years',
                       ),
                       _buildDetailItem(
                         icon: Icons.location_city,
                         label: 'City',
-                        value: data['city'] ?? 'N/A',
+                        value: widget.data['city'] ?? 'N/A',
                       ),
                       _buildDetailItem(
                         icon: Icons.access_time,
@@ -277,10 +336,7 @@ class ServiceDetailPage extends StatelessWidget {
                       ),
                     ],
                   ),
-
-                  SizedBox(height: 32),
-
-                  // Action Buttons
+                  const SizedBox(height: 32),
                   Row(
                     children: [
                       Expanded(
@@ -289,41 +345,33 @@ class ServiceDetailPage extends StatelessWidget {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ChatPage(providerId: providerId),
+                                builder: (_) => ChatPage(
+                                  providerId: widget.providerId,
+                                  providerName: widget.data['specialization']
+                                      ?.toString(),
+                                ),
                               ),
                             );
                           },
-                          icon: Icon(Icons.chat_outlined),
-                          label: Text('Chat Now'),
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: BorderSide(color: Colors.blue.shade700),
-                          ),
+                          icon: const Icon(Icons.chat_outlined),
+                          label: const Text('Chat Now'),
                         ),
                       ),
-                      SizedBox(width: 16),
+                      const SizedBox(width: 16),
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () => _launchPhone(phone),
-                          icon: Icon(Icons.call),
-                          label: Text('Call Now'),
+                          icon: const Icon(Icons.call),
+                          label: const Text('Call Now'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.green,
                             foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
                           ),
                         ),
                       ),
                     ],
                   ),
-
-                  SizedBox(height: 40),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
@@ -340,7 +388,7 @@ class ServiceDetailPage extends StatelessWidget {
     Color? color,
   }) {
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.grey.shade50,
         borderRadius: BorderRadius.circular(12),
@@ -349,19 +397,16 @@ class ServiceDetailPage extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, color: color ?? Colors.blue.shade700, size: 20),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   value,
                   style: TextStyle(

@@ -6,6 +6,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:saidia_app/auth/loginPage.dart';
 import 'package:saidia_app/screens/customers/notificationpage.dart';
+import 'package:saidia_app/screens/customers/bookingHistoryPage.dart';
+import 'package:saidia_app/screens/customers/savedServicesPage.dart';
+import 'package:saidia_app/screens/customers/paymentsHistoryPage.dart';
+import 'package:saidia_app/screens/customers/walletPage.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({Key? key}) : super(key: key);
@@ -17,63 +22,29 @@ class CustomerDashboard extends StatefulWidget {
 class _CustomerDashboardState extends State<CustomerDashboard> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _searchController = TextEditingController();
+  FirestoreService get _service => FirestoreService();
 
-  // Initialize categories list directly
   final List<Map<String, dynamic>> _categories = [
-    {
-      'name': 'Plumbing',
-      'icon': Icons.plumbing,
-      'color': Colors.blue,
-      'image':
-          'https://www.quickfixplumbers.co.ke/_next/image?url=%2Fassets%2Fimg%2Fservices%2Fbanners%2Fbroken-pipes.jpg&w=3840&q=75',
-    },
+    {'name': 'Plumbing', 'icon': Icons.plumbing, 'color': Colors.blue},
     {
       'name': 'Electrical',
       'icon': Icons.electrical_services,
       'color': Colors.amber,
-      'image':
-          'https://dannytechservices.co.ke/wp-content/uploads/2024/11/rein_0019_rewiring-work.webp',
     },
     {
       'name': 'Cleaning',
       'icon': Icons.cleaning_services,
       'color': Colors.lightBlue,
-      'image':
-          'https://i.ytimg.com/vi/krpQpX-2Pg4/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLDgUahYRmKsmtHjSULrx1YkuuAx9w',
     },
-    {
-      'name': 'Carpentry',
-      'icon': Icons.carpenter,
-      'color': Colors.brown,
-      'image':
-          'https://kuaventures.org/wp-content/uploads/2024/09/AKN00811-1-5-scaled.jpg',
-    },
+    {'name': 'Carpentry', 'icon': Icons.carpenter, 'color': Colors.brown},
     {
       'name': 'Painting',
       'icon': Icons.format_paint,
       'color': Colors.deepPurple,
-      'image':
-          'https://bestcareservices.co.ke/wp-content/uploads/2022/10/exterior-painting-services-in-Nairobi-Kenya.jpg',
     },
-    {
-      'name': 'Gardening',
-      'icon': Icons.nature,
-      'color': Colors.green,
-      'image':
-          'https://africasolutionsmediahub.org/wp-content/uploads/2024/01/Kenyas-gardening-teacher-1-scaled.jpg',
-    },
-    {
-      'name': 'AC Repair',
-      'icon': Icons.ac_unit,
-      'color': Colors.cyan,
-      'image': 'https://via.placeholder.com/150?text=AC+Repair',
-    },
-    {
-      'name': 'Appliances',
-      'icon': Icons.kitchen,
-      'color': Colors.orange,
-      'image': 'https://via.placeholder.com/150?text=Appliances',
-    },
+    {'name': 'Gardening', 'icon': Icons.nature, 'color': Colors.green},
+    {'name': 'AC Repair', 'icon': Icons.ac_unit, 'color': Colors.cyan},
+    {'name': 'Appliances', 'icon': Icons.kitchen, 'color': Colors.orange},
   ];
 
   @override
@@ -85,16 +56,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             _buildHeader(context, user),
-
-            // Search Bar
             _buildSearchBar(),
-
-            // Welcome Section
             _buildWelcomeSection(user),
-
-            // Categories Section
             _buildCategoriesSection(),
           ],
         ),
@@ -108,19 +72,15 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       builder: (context) => Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Hamburger Menu
             IconButton(
               icon: Icon(Icons.menu, color: Colors.blue.shade700),
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
+              onPressed: () => Scaffold.of(context).openDrawer(),
             ),
-            // icon and App Name
+            const SizedBox(width: 8),
             Container(
-              width: 50,
-              height: 50,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
                 gradient: LinearGradient(
@@ -132,87 +92,84 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               child: Center(
                 child: Image.asset(
                   'assets/logos/rounded_logo_tp.png',
-                  width: 40,
-                  height: 40,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Icon(
-                      Icons.broken_image,
-                      color: Colors.red,
-                      size: 40,
-                    );
-                  },
+                  width: 34,
+                  height: 34,
                 ),
               ),
             ),
-
-            // App Name
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'SaidiA',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade900,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'SaidiA',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade900,
+                    ),
                   ),
-                ),
-                Text(
-                  'Service Marketplace',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-              ],
+                  Text(
+                    'Service Marketplace',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
             ),
-
-            Spacer(),
-
-            // Notification Icon with Badge
-            Stack(
-              children: [
-                IconButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => NotificationPage()),
-                    );
-                  },
-                  icon: Container(
-                    padding: EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey.shade100,
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: Icon(
-                      Icons.notifications_outlined,
-                      color: Colors.grey.shade700,
-                      size: 24,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    padding: EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.red,
-                    ),
-                    constraints: BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      '3',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
+            StreamBuilder<int>(
+              stream: _service.getUnreadNotificationsCountStream(),
+              builder: (context, snapshot) {
+                final unread = snapshot.data ?? 0;
+                return Stack(
+                  children: [
+                    IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => NotificationPage()),
+                        );
+                      },
+                      icon: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.grey.shade100,
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Icon(
+                          Icons.notifications_outlined,
+                          color: Colors.grey.shade700,
+                          size: 22,
+                        ),
                       ),
-                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ),
-              ],
+                    if (unread > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 2,
+                          ),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.red,
+                          ),
+                          child: Text(
+                            unread > 99 ? '99+' : '$unread',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -227,7 +184,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Colors.black12,
               blurRadius: 8,
@@ -242,12 +199,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
             hintStyle: TextStyle(color: Colors.grey.shade500),
             prefixIcon: Icon(Icons.search, color: Colors.blue.shade700),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            suffixIcon: IconButton(
-              icon: Icon(Icons.tune, color: Colors.blue.shade700),
-              onPressed: () {
-                // Filter functionality
-              },
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
             ),
           ),
         ),
@@ -270,84 +224,52 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
         return Padding(
           padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Hello, $userName! 👋',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade900,
-                ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade700, Colors.lightBlue.shade400],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              SizedBox(height: 8),
-              Text(
-                'Find trusted professionals for your needs',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
-              ),
-              SizedBox(height: 16),
-              // Become Provider Banner
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade700, Colors.lightBlue.shade400],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello, $userName!',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.blue.withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.handyman, color: Colors.white, size: 40),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Become a Service Provider',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Earn money by offering your skills',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+                const SizedBox(height: 8),
+                Text(
+                  'Find trusted professionals for your needs',
+                  style: TextStyle(color: Colors.white.withOpacity(0.9)),
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.blue.shade700,
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BecomeProviderPage(),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const BecomeProviderPage(),
-                          ),
-                        );
-                      },
-                      icon: Icon(Icons.arrow_forward_ios, color: Colors.white),
-                    ),
-                  ],
+                    );
+                  },
+                  icon: const Icon(Icons.handyman),
+                  label: const Text('Become a Provider'),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -373,12 +295,10 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => ServicesListPage()),
-                    );
-                  },
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ServicesListPage()),
+                  ),
                   child: Row(
                     children: [
                       Text(
@@ -399,21 +319,19 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               ],
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Expanded(
             child: GridView.builder(
-              padding: EdgeInsets.all(16),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 4,
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
                 childAspectRatio: 0.8,
               ),
               itemCount: _categories.length,
-              itemBuilder: (context, index) {
-                final category = _categories[index];
-                return _buildCategoryItem(category);
-              },
+              itemBuilder: (context, index) =>
+                  _buildCategoryItem(_categories[index]),
             ),
           ),
         ],
@@ -456,7 +374,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               color: category['color'] as Color,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             category['name'] as String,
             style: TextStyle(
@@ -477,7 +395,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       width: MediaQuery.of(context).size.width * 0.8,
       child: Column(
         children: [
-          // Header
           StreamBuilder<DocumentSnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('users')
@@ -496,8 +413,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               return _buildDrawerHeader(name, email, phone);
             },
           ),
-
-          // Menu Items
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -514,30 +429,60 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const ProfilePage(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const ProfilePage()),
                     );
                   },
                 ),
                 _buildDrawerItem(
                   icon: Icons.bookmark_outline,
                   title: 'Saved Services',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => SavedServicesPage()),
+                    );
+                  },
                 ),
                 _buildDrawerItem(
                   icon: Icons.history,
                   title: 'Booking History',
                   onTap: () {
-                    
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => BookingHistoryPage()),
+                    );
                   },
                 ),
                 _buildDrawerItem(
                   icon: Icons.payments_outlined,
                   title: 'Payments',
-                  onTap: () {},
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => PaymentsHistoryPage()),
+                    );
+                  },
                 ),
-                Divider(thickness: 1, height: 32, indent: 20, endIndent: 20),
+                _buildDrawerItem(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'Wallet',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => WalletPage()),
+                    );
+                  },
+                ),
+                const Divider(
+                  thickness: 1,
+                  height: 32,
+                  indent: 20,
+                  endIndent: 20,
+                ),
                 _buildDrawerItem(
                   icon: Icons.handyman_outlined,
                   title: 'Become a Provider',
@@ -551,21 +496,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     );
                   },
                 ),
-                _buildDrawerItem(
-                  icon: Icons.settings_outlined,
-                  title: 'Settings',
-                  onTap: () {},
-                ),
-                _buildDrawerItem(
-                  icon: Icons.help_outline,
-                  title: 'Help & Support',
-                  onTap: () {},
-                ),
               ],
             ),
           ),
-
-          // Logout
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Container(
@@ -574,8 +507,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: ListTile(
-                leading: Icon(Icons.logout, color: Colors.red),
-                title: Text(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text(
                   'Logout',
                   style: TextStyle(
                     color: Colors.red,
@@ -592,58 +525,61 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   }
 
   Widget _buildDrawerHeader(String name, String email, String phone) {
-  return Container(
-    width: double.infinity,
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        colors: [Color.fromARGB(255, 20, 98, 187), Color.fromARGB(255, 3, 153, 228)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ),
-    ),
-    child: Center(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 25, 24, 24), 
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 40,
-              backgroundColor: Colors.white.withOpacity(0.25),
-              child: const Icon(Icons.person, size: 50, color: Colors.white),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              name,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              email,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
-                fontSize: 15,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              phone,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.9),
-                fontSize: 15,
-              ),
-            ),
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color.fromARGB(255, 20, 98, 187),
+            Color.fromARGB(255, 3, 153, 228),
           ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
-    ),
-  );
-}
-  
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 25, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 40,
+                backgroundColor: Colors.white.withOpacity(0.25),
+                child: const Icon(Icons.person, size: 50, color: Colors.white),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                email,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                phone,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildDrawerItem({
     required IconData icon,
     required String title,
@@ -651,7 +587,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   }) {
     return ListTile(
       leading: Container(
-        padding: EdgeInsets.all(8),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(8),
@@ -674,11 +610,13 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   Future<void> _logout(BuildContext context) async {
     try {
       await FirebaseAuth.instance.signOut();
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginPage()),
-        (route) => false,
-      );
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+          (route) => false,
+        );
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

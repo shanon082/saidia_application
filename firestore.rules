@@ -1,0 +1,159 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isApprovedProvider() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'provider' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.providerStatus == 'approved';
+    }
+
+    function isChatParticipant(chatId) {
+      let parts = chatId.split('_');
+      return parts.size() == 2 &&
+        (parts[0] == request.auth.uid || parts[1] == request.auth.uid);
+    }
+
+    match /users/{userId} {
+      allow get, list: if isAuthenticated() && (isUser(userId) || isAdmin());
+      allow create: if isAuthenticated() &&
+        isUser(userId) &&
+        request.resource.data.uid == userId &&
+        request.resource.data.role in ['customer', 'admin'];
+      allow update: if isAuthenticated() && (isUser(userId) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /provider_applications/{appId} {
+      allow get, list: if isAuthenticated() &&
+        (resource == null ||
+         resource.data.status == 'approved' ||
+         isUser(appId) ||
+         isAdmin());
+
+      allow create: if isAuthenticated() &&
+        isUser(appId) &&
+        request.resource.data.userId == appId &&
+        request.resource.data.status == 'pending';
+
+      allow update: if isAuthenticated() &&
+        ((isUser(appId) && resource.data.status == 'pending') || isAdmin());
+
+      allow delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if isAuthenticated() &&
+        request.resource.data.customerId == request.auth.uid;
+
+      allow get, list: if isAuthenticated() &&
+        (resource.data.customerId == request.auth.uid ||
+         resource.data.providerId == request.auth.uid ||
+         isAdmin());
+
+      allow update: if isAuthenticated() && (
+        isAdmin() ||
+        (
+          resource.data.providerId == request.auth.uid &&
+          request.resource.data.customerId == resource.data.customerId &&
+          request.resource.data.providerId == resource.data.providerId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /saved_services/{savedId} {
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow get, list: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    match /notifications/{notificationId} {
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow get, list: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId;
+      allow delete: if isAuthenticated() &&
+        resource.data.userId == request.auth.uid;
+    }
+
+    match /payments/{paymentId} {
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow get, list: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /wallets/{walletUserId} {
+      allow create: if isAuthenticated() && isUser(walletUserId);
+      allow get, list: if isAuthenticated() && (isUser(walletUserId) || isAdmin());
+      allow update: if isAuthenticated() &&
+        (isUser(walletUserId) || isAdmin()) &&
+        request.resource.data.userId == resource.data.userId;
+      allow delete: if isAdmin();
+
+      match /transactions/{transactionId} {
+        allow create: if isAuthenticated() &&
+          request.resource.data.userId == request.auth.uid &&
+          isUser(walletUserId);
+        allow get, list: if isAuthenticated() &&
+          (isUser(walletUserId) || isAdmin());
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /chats/{chatId} {
+      allow read, create: if isAuthenticated() && isChatParticipant(chatId);
+      allow update, delete: if false;
+
+      match /messages/{messageId} {
+        allow read, create: if isAuthenticated() && isChatParticipant(chatId);
+
+        allow create: if request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.message is string &&
+          request.resource.data.message.size() > 0;
+
+        allow update, delete: if false;
+      }
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create: if isApprovedProvider();
+      allow update, delete: if isAuthenticated() &&
+        (resource.data.providerId == request.auth.uid || isAdmin());
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

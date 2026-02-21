@@ -6,11 +6,13 @@ import 'package:saidia_app/firebase_options.dart';
 import 'package:saidia_app/screens/admin/adminDashboard.dart';
 import 'package:saidia_app/screens/customers/customerDashboard.dart';
 import 'package:saidia_app/screens/provider/providerDashboard.dart';
+import 'package:saidia_app/services/notification_service.dart';
 import 'package:saidia_app/splashscreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService.instance.initialize();
   runApp(const MyApp());
 }
 
@@ -23,7 +25,9 @@ class MyApp extends StatelessWidget {
       title: 'SaidiA App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 73, 4, 192)),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color.fromARGB(255, 73, 4, 192),
+        ),
         useMaterial3: true,
       ),
       home: const SplashScreen(),

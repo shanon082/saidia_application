@@ -1,217 +1,183 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 
 class NotificationPage extends StatelessWidget {
+  NotificationPage({super.key});
+
+  final FirestoreService _service = FirestoreService();
+
+  String _formatTimestamp(Timestamp? ts) {
+    if (ts == null) return 'Just now';
+    final now = DateTime.now();
+    final dt = ts.toDate();
+    final diff = now.difference(dt);
+
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return DateFormat('dd MMM yyyy').format(dt);
+  }
+
+  IconData _iconForType(String type) {
+    switch (type) {
+      case 'booking':
+        return Icons.book_online;
+      case 'payment':
+        return Icons.payments;
+      case 'wallet':
+        return Icons.account_balance_wallet;
+      case 'chat':
+        return Icons.chat_bubble;
+      case 'provider_application':
+        return Icons.verified;
+      default:
+        return Icons.notifications;
+    }
+  }
+
+  Color _colorForType(String type) {
+    switch (type) {
+      case 'booking':
+        return Colors.blue;
+      case 'payment':
+        return Colors.green;
+      case 'wallet':
+        return Colors.teal;
+      case 'chat':
+        return Colors.orange;
+      case 'provider_application':
+        return Colors.purple;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Notifications'),
+        title: const Text('Notifications'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-        elevation: 0,
-        centerTitle: true,
+        elevation: 1,
         actions: [
           IconButton(
-            icon: Icon(Icons.more_vert),
-            onPressed: () {},
+            onPressed: _service.markAllNotificationsAsRead,
+            icon: const Icon(Icons.mark_email_read_outlined),
+            tooltip: 'Mark all read',
+          ),
+          IconButton(
+            onPressed: _service.clearAllNotifications,
+            icon: const Icon(Icons.delete_sweep_outlined),
+            tooltip: 'Clear all',
           ),
         ],
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.notifications_active,
-                      color: Colors.blue.shade700,
-                      size: 32,
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '3 New Notifications',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Stay updated with your service requests',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {},
-                    child: Text(
-                      'Mark all read',
-                      style: TextStyle(color: Colors.blue.shade700),
-                    ),
-                  ),
-                ],
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _service.getNotificationsStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Failed to load notifications: ${snapshot.error}'),
+            );
+          }
+
+          final docs = [...(snapshot.data?.docs ?? [])];
+          docs.sort((a, b) {
+            final aTs = a.data()['createdAt'] as Timestamp?;
+            final bTs = b.data()['createdAt'] as Timestamp?;
+            final aMs = aTs?.millisecondsSinceEpoch ?? 0;
+            final bMs = bTs?.millisecondsSinceEpoch ?? 0;
+            return bMs.compareTo(aMs);
+          });
+          final unreadCount = docs
+              .where((d) => (d.data()['isRead'] as bool?) == false)
+              .length;
+
+          if (docs.isEmpty) {
+            return const Center(child: Text('No notifications yet.'));
+          }
+
+          return Column(
+            children: [
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text('$unreadCount unread notification(s)'),
               ),
-            ),
-          ),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final notifications = [
-                  {
-                    'title': 'Booking Confirmed!',
-                    'message': 'Your plumbing service with John Doe has been confirmed',
-                    'time': 'Just now',
-                    'icon': Icons.check_circle,
-                    'color': Colors.green,
-                    'read': false,
-                  },
-                  {
-                    'title': 'New Message',
-                    'message': 'Sarah Johnson sent you a message about your booking',
-                    'time': '2 hours ago',
-                    'icon': Icons.chat,
-                    'color': Colors.blue,
-                    'read': false,
-                  },
-                  {
-                    'title': 'Payment Received',
-                    'message': 'UGX 2,500 has been credited to your account',
-                    'time': 'Yesterday',
-                    'icon': Icons.payment,
-                    'color': Colors.purple,
-                    'read': true,
-                  },
-                  {
-                    'title': 'New Review',
-                    'message': 'You received a 5-star review from Michael',
-                    'time': '2 days ago',
-                    'icon': Icons.star,
-                    'color': Colors.amber,
-                    'read': true,
-                  },
-                  {
-                    'title': 'Service Reminder',
-                    'message': 'Your electrical service appointment is tomorrow at 10 AM',
-                    'time': '1 week ago',
-                    'icon': Icons.access_alarm,
-                    'color': Colors.orange,
-                    'read': true,
-                  },
-                ];
-                
-                final notification = notifications[index];
-                
-                return Dismissible(
-                  key: ValueKey(index),
-                  background: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    padding: EdgeInsets.only(right: 20),
-                    child: Icon(Icons.delete, color: Colors.white),
-                  ),
-                  child: Container(
-                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black12,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: ListTile(
-                      leading: Container(
-                        padding: EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: (notification['color'] as Color).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          notification['icon'] as IconData,
-                          color: notification['color'] as Color,
-                          size: 24,
-                        ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+                    final data = doc.data();
+                    final type = (data['type'] as String?) ?? 'system';
+                    final title = (data['title'] as String?) ?? 'Notification';
+                    final message = (data['message'] as String?) ?? '';
+                    final isRead = (data['isRead'] as bool?) ?? false;
+                    final createdAt = data['createdAt'] as Timestamp?;
+                    final color = _colorForType(type);
+
+                    return Dismissible(
+                      key: ValueKey(doc.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: const Icon(Icons.delete, color: Colors.white),
                       ),
-                      title: Text(
-                        notification['title'] as String,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: notification['read'] as bool ? Colors.grey.shade600 : Colors.black,
+                      onDismissed: (_) => _service.deleteNotification(doc.id),
+                      child: ListTile(
+                        tileColor: isRead ? Colors.white : Colors.blue.shade50,
+                        leading: CircleAvatar(
+                          backgroundColor: color.withOpacity(0.12),
+                          child: Icon(_iconForType(type), color: color),
                         ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(height: 4),
-                          Text(
-                            notification['message'] as String,
-                            style: TextStyle(
-                              color: notification['read'] as bool ? Colors.grey.shade500 : Colors.grey.shade700,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                        title: Text(
+                          title,
+                          style: TextStyle(
+                            fontWeight: isRead
+                                ? FontWeight.w500
+                                : FontWeight.bold,
                           ),
-                          SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.access_time,
-                                size: 12,
-                                color: Colors.grey.shade400,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                notification['time'] as String,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade400,
-                                ),
-                              ),
-                              Spacer(),
-                              if (!(notification['read'] as bool))
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: Colors.blue,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
+                        ),
+                        subtitle: Text(
+                          '$message\n${_formatTimestamp(createdAt)}',
+                        ),
+                        isThreeLine: true,
+                        trailing: !isRead
+                            ? const Icon(
+                                Icons.brightness_1,
+                                size: 10,
+                                color: Colors.blue,
+                              )
+                            : null,
+                        onTap: () {
+                          if (!isRead) {
+                            _service.markNotificationAsRead(doc.id);
+                          }
+                        },
                       ),
-                      onTap: () {
-                        // Handle notification tap
-                      },
-                    ),
-                  ),
-                );
-              },
-              childCount: 5,
-            ),
-          ),
-        ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
