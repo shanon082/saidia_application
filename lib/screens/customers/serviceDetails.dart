@@ -89,7 +89,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
         (widget.data['businessImages'] as List<dynamic>?)?.cast<String>() ?? [];
     final String profileImage = widget.data['imageUrl'] ?? '';
     final String phone = widget.data['phonenumber'] ?? 'Not provided';
-    final double rating = (widget.data['rating'] as num?)?.toDouble() ?? 4.8;
+    final double rating = (widget.data['rating'] as num?)?.toDouble() ?? 0.0;
 
     return Scaffold(
       body: CustomScrollView(

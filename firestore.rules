@@ -27,6 +27,17 @@ service cloud.firestore {
         (parts[0] == request.auth.uid || parts[1] == request.auth.uid);
     }
 
+    function isTargetInChat(chatId, targetUid) {
+      let parts = chatId.split('_');
+      return parts.size() == 2 &&
+        (parts[0] == targetUid || parts[1] == targetUid);
+    }
+
+    function isBookingParticipant(bookingId, uid) {
+      let booking = get(/databases/$(database)/documents/bookings/$(bookingId)).data;
+      return booking.customerId == uid || booking.providerId == uid;
+    }
+
     match /users/{userId} {
       allow get, list: if isAuthenticated() && (isUser(userId) || isAdmin());
       allow create: if isAuthenticated() &&
@@ -50,7 +61,15 @@ service cloud.firestore {
         request.resource.data.status == 'pending';
 
       allow update: if isAuthenticated() &&
-        ((isUser(appId) && resource.data.status == 'pending') || isAdmin());
+        (
+          (isUser(appId) && resource.data.status == 'pending') ||
+          isAdmin() ||
+          (
+            isUser(appId) &&
+            resource.data.status == 'approved' &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['businessImages', 'updatedAt'])
+          )
+        );
 
       allow delete: if isAdmin();
     }
@@ -89,7 +108,28 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        (
+          request.resource.data.type == 'booking' &&
+          request.resource.data.data.bookingId is string &&
+          isBookingParticipant(request.resource.data.data.bookingId, request.auth.uid) &&
+          isBookingParticipant(request.resource.data.data.bookingId, request.resource.data.userId)
+        ) ||
+        (
+          request.resource.data.type == 'chat' &&
+          request.resource.data.data.chatId is string &&
+          isChatParticipant(request.resource.data.data.chatId) &&
+          isTargetInChat(request.resource.data.data.chatId, request.resource.data.userId)
+        ) ||
+        (
+          request.resource.data.type == 'review' &&
+          request.resource.data.data.bookingId is string &&
+          isBookingParticipant(request.resource.data.data.bookingId, request.auth.uid) &&
+          isBookingParticipant(request.resource.data.data.bookingId, request.resource.data.userId)
+        )
+      );
       allow get, list: if isAuthenticated() &&
         resource.data.userId == request.auth.uid;
       allow update: if isAuthenticated() &&
@@ -125,11 +165,27 @@ service cloud.firestore {
     }
 
     match /chats/{chatId} {
-      allow read, create: if isAuthenticated() && isChatParticipant(chatId);
-      allow update, delete: if false;
+      allow read: if isAuthenticated() && (
+        isChatParticipant(chatId) ||
+        request.auth.uid in resource.data.participants
+      );
+      allow create: if isAuthenticated() && isChatParticipant(chatId);
+      allow update: if isAuthenticated() &&
+        isChatParticipant(chatId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'participants', 'lastMessage', 'lastMessageTime', 'updatedAt'
+        ]);
+      allow delete: if false;
 
       match /messages/{messageId} {
-        allow read, create: if isAuthenticated() && isChatParticipant(chatId);
+        allow read: if isAuthenticated() && (
+          isChatParticipant(chatId) ||
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        );
+        allow create: if isAuthenticated() && (
+          isChatParticipant(chatId) ||
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        );
 
         allow create: if request.resource.data.senderId == request.auth.uid &&
           request.resource.data.message is string &&
@@ -142,6 +198,26 @@ service cloud.firestore {
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow create: if isAuthenticated() &&
+        request.resource.data.customerId == request.auth.uid &&
+        request.resource.data.bookingId is string &&
+        get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.customerId == request.auth.uid &&
+        get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.providerId == request.resource.data.providerId &&
+        (
+          get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status == 'confirmed' ||
+          get(/databases/$(database)/documents/bookings/$(request.resource.data.bookingId)).data.status == 'completed'
+        );
+      allow get, list: if isAuthenticated() &&
+        (
+          resource.data.providerId == request.auth.uid ||
+          resource.data.customerId == request.auth.uid ||
+          isAdmin()
+        );
+      allow update, delete: if isAuthenticated() &&
+        (resource.data.customerId == request.auth.uid || isAdmin());
     }
 
     match /services/{serviceId} {

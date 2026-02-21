@@ -10,9 +10,17 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
+
+  String _normalizeRole(dynamic rawRole) {
+    final role = rawRole?.toString().trim().toLowerCase() ?? '';
+    if (role.contains('admin')) return 'admin';
+    if (role.contains('provider')) return 'provider';
+    return 'customer';
+  }
 
   @override
   void initState() {
@@ -24,9 +32,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       duration: const Duration(milliseconds: 1500),
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
     _controller.forward();
 
@@ -39,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
-      
+
       if (currentUser == null) {
         if (mounted) {
           Navigator.of(context).pushReplacement(
@@ -65,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           .collection('users')
           .doc(user.uid)
           .get();
-      
+
       if (!userDoc.exists) {
         await FirebaseAuth.instance.signOut();
         if (mounted) {
@@ -75,11 +84,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
         }
         return;
       }
-      
+
       final userData = userDoc.data()!;
-      final role = userData['role']?.toString() ?? 'customer';
-      final providerStatus = userData['providerStatus']?.toString();
-      
+      final role = _normalizeRole(userData['role']);
+      final providerStatus = userData['providerStatus']
+          ?.toString()
+          .trim()
+          .toLowerCase();
+
       if (mounted) {
         switch (role) {
           case 'admin':
@@ -93,6 +105,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             }
             break;
           default:
+            if (providerStatus == 'approved') {
+              Navigator.of(context).pushReplacementNamed('/provider-dashboard');
+              break;
+            }
             Navigator.of(context).pushReplacementNamed('/customer-dashboard');
         }
       }

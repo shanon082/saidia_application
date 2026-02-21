@@ -24,6 +24,13 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  String _normalizeRole(dynamic rawRole) {
+    final role = rawRole?.toString().trim().toLowerCase() ?? '';
+    if (role.contains('admin')) return 'admin';
+    if (role.contains('provider')) return 'provider';
+    return 'customer';
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -47,35 +54,19 @@ class _LoginPageState extends State<LoginPage> {
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
 
       if (!userDoc.exists) {
-        print('User document not found in Firestore. Creating...');
-
-        // Create user profile if it doesn't exist (legacy users)
-        await _firestore.collection('users').doc(user.uid).set({
-          'uid': user.uid,
-          'name': user.displayName ?? 'User',
-          'email': _email.trim(),
-          'role': 'customer',
-          'providerStatus': null,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        print('User profile created successfully');
+        await _auth.signOut();
+        throw Exception(
+          'Your user profile is missing. Contact admin to restore your account role.',
+        );
       }
 
       // Get user data
-      final userData = userDoc.exists
-          ? userDoc.data()!
-          : {
-              'uid': user.uid,
-              'name': user.displayName ?? 'User',
-              'email': _email.trim(),
-              'role': 'customer',
-              'providerStatus': null,
-            };
-
-      final role = userData['role']?.toString() ?? 'customer';
-      final providerStatus = userData['providerStatus']?.toString();
+      final userData = userDoc.data()!;
+      final role = _normalizeRole(userData['role']);
+      final providerStatus = userData['providerStatus']
+          ?.toString()
+          .trim()
+          .toLowerCase();
       final name = userData['name']?.toString() ?? 'User';
 
       print('User role: $role, Provider status: $providerStatus');
@@ -121,6 +112,10 @@ class _LoginPageState extends State<LoginPage> {
           }
           break;
         default:
+          if (providerStatus == 'approved') {
+            destination = const ProviderDashboard();
+            break;
+          }
           destination = const CustomerDashboard();
       }
 
@@ -320,20 +315,27 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                     const SizedBox(height: 40),
-        
+
                     // Login Form
                     const Text(
                       'Login to Your Account',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,),
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const Text(
                       'Enter your credentials to continue',
-                      style: TextStyle(fontSize: 14, color: Colors.grey, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey,
+                        fontStyle: FontStyle.italic,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
-        
+
                     // Email field
                     TextFormField(
                       decoration: InputDecoration(
@@ -388,7 +390,7 @@ class _LoginPageState extends State<LoginPage> {
                       onChanged: (v) => _email = v.trim(),
                     ),
                     const SizedBox(height: 15),
-        
+
                     // Password field
                     TextFormField(
                       decoration: InputDecoration(
@@ -452,7 +454,7 @@ class _LoginPageState extends State<LoginPage> {
                       },
                       onSaved: (v) => _password = v!,
                     ),
-        
+
                     // Forgot password
                     Align(
                       alignment: Alignment.centerRight,
@@ -465,14 +467,14 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-        
+
                     // Login button
                     SizedBox(
                       height: 50,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF2575FC),                        
+                          backgroundColor: Color(0xFF2575FC),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -499,7 +501,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-        
+
                     // Divider
                     Row(
                       children: [
@@ -528,7 +530,7 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                     const SizedBox(height: 24),
-        
+
                     // Sign up button
                     SizedBox(
                       height: 50,
@@ -550,13 +552,16 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-        
+
                     const SizedBox(height: 40),
-        
+
                     // Footer
                     Text(
                       'By continuing, you agree to our Terms of Service and Privacy Policy',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),

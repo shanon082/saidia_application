@@ -5,12 +5,14 @@ import 'package:saidia_app/auth/loginPage.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/screens/provider/earningspage.dart';
 import 'package:saidia_app/screens/provider/schedulepage.dart';
-import 'package:saidia_app/screens/provider/messagespage.dart';
+import 'package:saidia_app/screens/provider/messagesPage.dart';
 import 'package:saidia_app/screens/provider/reviewspage.dart';
 import 'package:saidia_app/screens/provider/analyticspage.dart';
+import 'package:saidia_app/screens/provider/portfolioPage.dart';
 import 'package:saidia_app/screens/provider/settingspage.dart';
 import 'package:saidia_app/screens/provider/helppage.dart';
 import 'package:saidia_app/screens/provider/notificationspage.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 
 class ProviderDashboard extends StatefulWidget {
   const ProviderDashboard({super.key});
@@ -22,6 +24,7 @@ class ProviderDashboard extends StatefulWidget {
 class _ProviderDashboardState extends State<ProviderDashboard> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirestoreService _service = FirestoreService();
   int _selectedIndex = 0;
   late Stream<DocumentSnapshot> _providerDataStream;
   late Stream<QuerySnapshot> _bookingsStream;
@@ -48,7 +51,6 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     return _firestore
         .collection('bookings')
         .where('providerId', isEqualTo: _auth.currentUser!.uid)
-        .orderBy('date')
         .snapshots();
   }
 
@@ -56,8 +58,6 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     return _firestore
         .collection('reviews')
         .where('providerId', isEqualTo: _auth.currentUser!.uid)
-        .orderBy('timestamp', descending: true)
-        .limit(5)
         .snapshots();
   }
 
@@ -65,7 +65,6 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     return _firestore
         .collection('chats')
         .where('participants', arrayContains: _auth.currentUser!.uid)
-        .orderBy('lastMessageTime', descending: true)
         .snapshots();
   }
 
@@ -92,9 +91,13 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _selectedIndex == 0 ? 'Dashboard' : 
-          _selectedIndex == 1 ? 'Bookings' : 
-          _selectedIndex == 2 ? 'Messages' : 'Profile',
+          _selectedIndex == 0
+              ? 'Dashboard'
+              : _selectedIndex == 1
+              ? 'Bookings'
+              : _selectedIndex == 2
+              ? 'Messages'
+              : 'Profile',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,
@@ -107,39 +110,52 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           ),
         ),
         actions: [
-          Stack(
-            children: [
-              IconButton(
-                icon: Icon(Icons.notifications_outlined, color: Colors.grey.shade700),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => NotificationsPage()),
-                  );
-                },
-              ),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  padding: EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.red,
-                  ),
-                  constraints: BoxConstraints(minWidth: 16, minHeight: 16),
-                  child: Text(
-                    '3',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+          StreamBuilder<int>(
+            stream: _service.getUnreadNotificationsCountStream(),
+            builder: (context, snapshot) {
+              final unread = snapshot.data ?? 0;
+              return Stack(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.notifications_outlined,
+                      color: Colors.grey.shade700,
                     ),
-                    textAlign: TextAlign.center,
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => NotificationsPage()),
+                      );
+                    },
                   ),
-                ),
-              ),
-            ],
+                  if (unread > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.red,
+                        ),
+                        constraints: BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        child: Text(
+                          unread > 99 ? '99+' : '$unread',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -181,7 +197,10 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
         backgroundColor: Colors.white,
         selectedItemColor: Colors.blue.shade700,
         unselectedItemColor: Colors.grey.shade600,
-        selectedLabelStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+        selectedLabelStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
         unselectedLabelStyle: TextStyle(fontSize: 12),
         type: BottomNavigationBarType.fixed,
         items: [
@@ -219,20 +238,40 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           StreamBuilder<DocumentSnapshot>(
             stream: _providerDataStream,
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return _buildDrawerHeader(
+                  'Provider',
+                  'Profile unavailable',
+                  '',
+                  0.0,
+                  0.0,
+                );
+              }
+
               if (!snapshot.hasData) {
-                return _buildDrawerHeader('Loading...', 'Loading...', '', 0.0);
+                return _buildDrawerHeader(
+                  'Loading...',
+                  'Loading...',
+                  '',
+                  0.0,
+                  0.0,
+                );
               }
 
               final data = snapshot.data!.data() as Map<String, dynamic>?;
               final name = data?['specialization'] ?? 'Provider';
               final category = data?['serviceCategory'] ?? 'Service';
               final image = data?['imageUrl'] ?? '';
-              final rate = (data?['hourlyRate'] ?? 0).toDouble();
+              final rawRate = data?['hourlyRate'];
+              final rate = rawRate is num
+                  ? rawRate.toDouble()
+                  : double.tryParse(rawRate?.toString() ?? '0') ?? 0.0;
+              final rating = (data?['rating'] as num?)?.toDouble() ?? 0.0;
 
-              return _buildDrawerHeader(name, category, image, rate);
+              return _buildDrawerHeader(name, category, image, rate, rating);
             },
           ),
-          
+
           // Menu Items
           Expanded(
             child: ListView(
@@ -268,7 +307,6 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 _buildDrawerItem(
                   icon: Icons.chat_outlined,
                   title: 'Messages',
-                  badge: '3',
                   onTap: () {
                     Navigator.pop(context);
                     setState(() => _selectedIndex = 2);
@@ -315,6 +353,17 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                     setState(() => _selectedIndex = 3);
                   },
                 ),
+                _buildDrawerItem(
+                  icon: Icons.photo_library_outlined,
+                  title: 'Portfolio Images',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PortfolioPage()),
+                    );
+                  },
+                ),
                 Divider(thickness: 1, height: 32, indent: 20, endIndent: 20),
                 _buildDrawerItem(
                   icon: Icons.settings_outlined,
@@ -341,7 +390,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               ],
             ),
           ),
-          
+
           // Logout
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -361,7 +410,10 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 ),
                 title: Text(
                   'Logout',
-                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 trailing: Icon(Icons.chevron_right, color: Colors.red),
                 onTap: () => _logout(context),
@@ -373,7 +425,13 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     );
   }
 
-  Widget _buildDrawerHeader(String name, String category, String image, double rate) {
+  Widget _buildDrawerHeader(
+    String name,
+    String category,
+    String image,
+    double rate,
+    double rating,
+  ) {
     return Container(
       padding: EdgeInsets.only(top: 40, bottom: 20, left: 20, right: 20),
       decoration: BoxDecoration(
@@ -390,7 +448,9 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
             radius: 40,
             backgroundColor: Colors.white.withOpacity(0.2),
             backgroundImage: image.isNotEmpty ? NetworkImage(image) : null,
-            child: image.isEmpty ? Icon(Icons.handyman, size: 50, color: Colors.white) : null,
+            child: image.isEmpty
+                ? Icon(Icons.handyman, size: 50, color: Colors.white)
+                : null,
           ),
           SizedBox(height: 16),
           Text(
@@ -414,11 +474,18 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
             children: [
               Icon(Icons.star, color: Colors.yellow, size: 20),
               SizedBox(width: 4),
-              Text('4.8', style: TextStyle(color: Colors.white, fontSize: 16)),
+              Text(
+                rating.toStringAsFixed(1),
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
               SizedBox(width: 16),
               Text(
                 'UGX ${rate.toInt()}/hr',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -515,28 +582,47 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                   ),
                 ),
                 SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _statCard(
-                        'Today\'s Bookings',
-                        '3',
-                        Icons.calendar_today,
-                        Colors.white.withOpacity(0.2),
-                        Colors.white,
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: _statCard(
-                        'Pending',
-                        '2',
-                        Icons.pending,
-                        Colors.white.withOpacity(0.2),
-                        Colors.white,
-                      ),
-                    ),
-                  ],
+                StreamBuilder<QuerySnapshot>(
+                  stream: _bookingsStream,
+                  builder: (context, snapshot) {
+                    final docs = snapshot.data?.docs ?? [];
+                    final today = DateFormat(
+                      'yyyy-MM-dd',
+                    ).format(DateTime.now());
+                    final todaysBookings = docs.where((b) {
+                      final data = b.data() as Map<String, dynamic>;
+                      return data['date'] == today;
+                    }).length;
+                    final pending = docs.where((b) {
+                      final data = b.data() as Map<String, dynamic>;
+                      return (data['status']?.toString().toLowerCase() ?? '') ==
+                          'pending';
+                    }).length;
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _statCard(
+                            'Today\'s Bookings',
+                            '$todaysBookings',
+                            Icons.calendar_today,
+                            Colors.white.withOpacity(0.2),
+                            Colors.white,
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: _statCard(
+                            'Pending',
+                            '$pending',
+                            Icons.pending,
+                            Colors.white.withOpacity(0.2),
+                            Colors.white,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -553,19 +639,82 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
             ),
           ),
           SizedBox(height: 16),
-          GridView.count(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.2,
-            children: [
-              _quickStatCard('Total Bookings', '45', Icons.book_online, Colors.green),
-              _quickStatCard('Earnings', 'UGX 12,500', Icons.attach_money, Colors.blue),
-              _quickStatCard('Rating', '4.8', Icons.star, Colors.amber),
-              _quickStatCard('Reviews', '28', Icons.reviews, Colors.purple),
-            ],
+          StreamBuilder<QuerySnapshot>(
+            stream: _bookingsStream,
+            builder: (context, bookingSnapshot) {
+              return StreamBuilder<QuerySnapshot>(
+                stream: _reviewsStream,
+                builder: (context, reviewSnapshot) {
+                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: _service.getProviderPaymentsStream(),
+                    builder: (context, paymentSnapshot) {
+                      final bookings = bookingSnapshot.data?.docs ?? [];
+                      final reviews = reviewSnapshot.data?.docs ?? [];
+                      final payments = paymentSnapshot.data?.docs ?? [];
+
+                      final earnings = payments
+                          .where((p) => p.data()['type'] == 'booking_earning')
+                          .fold<double>(
+                            0,
+                            (total, p) =>
+                                total +
+                                ((p.data()['amount'] as num?)?.toDouble() ?? 0),
+                          );
+
+                      final ratingVals = reviews
+                          .map(
+                            (r) =>
+                                ((r.data() as Map<String, dynamic>)['rating']
+                                        as num?)
+                                    ?.toDouble() ??
+                                0.0,
+                          )
+                          .where((v) => v > 0)
+                          .toList();
+                      final avgRating = ratingVals.isEmpty
+                          ? 0.0
+                          : ratingVals.reduce((a, b) => a + b) /
+                                ratingVals.length;
+
+                      return GridView.count(
+                        shrinkWrap: true,
+                        physics: NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                        childAspectRatio: 1.2,
+                        children: [
+                          _quickStatCard(
+                            'Total Bookings',
+                            '${bookings.length}',
+                            Icons.book_online,
+                            Colors.green,
+                          ),
+                          _quickStatCard(
+                            'Earnings',
+                            'UGX ${earnings.toStringAsFixed(0)}',
+                            Icons.attach_money,
+                            Colors.blue,
+                          ),
+                          _quickStatCard(
+                            'Rating',
+                            avgRating.toStringAsFixed(1),
+                            Icons.star,
+                            Colors.amber,
+                          ),
+                          _quickStatCard(
+                            'Reviews',
+                            '${reviews.length}',
+                            Icons.reviews,
+                            Colors.purple,
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              );
+            },
           ),
           SizedBox(height: 24),
 
@@ -594,7 +743,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       'View All',
                       style: TextStyle(color: Colors.blue.shade700),
                     ),
-                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.blue.shade700),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.blue.shade700,
+                    ),
                   ],
                 ),
               ),
@@ -604,24 +757,35 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           StreamBuilder<QuerySnapshot>(
             stream: _bookingsStream,
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return _emptyState(
+                  'Error loading schedule: ${snapshot.error}',
+                  Icons.error_outline,
+                );
+              }
               if (!snapshot.hasData) {
                 return Center(child: CircularProgressIndicator());
               }
 
               final bookings = snapshot.data!.docs;
               final todayBookings = bookings.where((booking) {
-                final data = booking.data() as Map<String, dynamic>;
+                final raw = booking.data() as Map<String, dynamic>;
+                final data = {...raw, 'bookingId': booking.id};
                 final date = data['date'] as String?;
                 return date == DateFormat('yyyy-MM-dd').format(DateTime.now());
               }).toList();
 
               if (todayBookings.isEmpty) {
-                return _emptyState('No bookings scheduled for today', Icons.calendar_today);
+                return _emptyState(
+                  'No bookings scheduled for today',
+                  Icons.calendar_today,
+                );
               }
 
               return Column(
                 children: todayBookings.take(2).map((booking) {
-                  final data = booking.data() as Map<String, dynamic>;
+                  final raw = booking.data() as Map<String, dynamic>;
+                  final data = {...raw, 'bookingId': booking.id};
                   return _bookingCard(data);
                 }).toList(),
               );
@@ -654,7 +818,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       'View All',
                       style: TextStyle(color: Colors.blue.shade700),
                     ),
-                    Icon(Icons.arrow_forward_ios, size: 14, color: Colors.blue.shade700),
+                    Icon(
+                      Icons.arrow_forward_ios,
+                      size: 14,
+                      color: Colors.blue.shade700,
+                    ),
                   ],
                 ),
               ),
@@ -664,6 +832,12 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           StreamBuilder<QuerySnapshot>(
             stream: _reviewsStream,
             builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return _emptyState(
+                  'Error loading reviews: ${snapshot.error}',
+                  Icons.error_outline,
+                );
+              }
               if (!snapshot.hasData) {
                 return Center(child: CircularProgressIndicator());
               }
@@ -687,7 +861,13 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     );
   }
 
-  Widget _statCard(String title, String value, IconData icon, Color bgColor, Color color) {
+  Widget _statCard(
+    String title,
+    String value,
+    IconData icon,
+    Color bgColor,
+    Color color,
+  ) {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -711,28 +891,26 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           SizedBox(height: 4),
           Text(
             title,
-            style: TextStyle(
-              color: color.withOpacity(0.9),
-              fontSize: 14,
-            ),
+            style: TextStyle(color: color.withOpacity(0.9), fontSize: 14),
           ),
         ],
       ),
     );
   }
 
-  Widget _quickStatCard(String title, String value, IconData icon, Color color) {
+  Widget _quickStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -758,10 +936,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           SizedBox(height: 4),
           Text(
             title,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -776,11 +951,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Row(
@@ -797,28 +968,19 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               children: [
                 Text(
                   data['customerName'] ?? 'Customer',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 4),
                 Text(
                   '${data['date']} • ${data['time']}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                 ),
                 SizedBox(height: 4),
                 Text(
                   data['details'] ?? '',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade700,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
                 ),
               ],
             ),
@@ -826,13 +988,17 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: (data['status'] == 'confirmed' ? Colors.green : Colors.orange).withOpacity(0.1),
+              color:
+                  (data['status'] == 'confirmed' ? Colors.green : Colors.orange)
+                      .withOpacity(0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               data['status'] ?? 'pending',
               style: TextStyle(
-                color: data['status'] == 'confirmed' ? Colors.green : Colors.orange,
+                color: data['status'] == 'confirmed'
+                    ? Colors.green
+                    : Colors.orange,
                 fontWeight: FontWeight.w600,
                 fontSize: 12,
               ),
@@ -851,11 +1017,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -866,7 +1028,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               CircleAvatar(
                 radius: 20,
                 backgroundColor: Colors.grey.shade200,
-                child: Icon(Icons.person, size: 20, color: Colors.grey.shade600),
+                child: Icon(
+                  Icons.person,
+                  size: 20,
+                  color: Colors.grey.shade600,
+                ),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -882,11 +1048,16 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                     ),
                     SizedBox(height: 2),
                     Row(
-                      children: List.generate(5, (index) => Icon(
-                        Icons.star,
-                        size: 16,
-                        color: index < (data['rating'] ?? 0) ? Colors.yellow : Colors.grey.shade300,
-                      )),
+                      children: List.generate(
+                        5,
+                        (index) => Icon(
+                          Icons.star,
+                          size: 16,
+                          color: index < (data['rating'] ?? 0)
+                              ? Colors.yellow
+                              : Colors.grey.shade300,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -896,20 +1067,14 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           SizedBox(height: 12),
           Text(
             data['comment'] ?? '',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade800,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
           ),
           SizedBox(height: 8),
           Text(
-            DateFormat('dd MMM yyyy').format(
-              (data['timestamp'] as Timestamp).toDate(),
-            ),
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade600,
-            ),
+            DateFormat(
+              'dd MMM yyyy',
+            ).format((data['timestamp'] as Timestamp).toDate()),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -932,28 +1097,37 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               ),
             ],
           ),
-          child: Row(
-            children: ['All', 'Pending', 'Confirmed', 'Completed', 'Cancelled']
-                .map((status) => Padding(
-                      padding: EdgeInsets.only(right: 8),
-                      child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.blue.shade100),
-                        ),
-                        child: Text(
-                          status,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.blue.shade700,
-                            fontWeight: FontWeight.w500,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children:
+                  ['All', 'Pending', 'Confirmed', 'Completed', 'Cancelled']
+                      .map(
+                        (status) => Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.blue.shade100),
+                            ),
+                            child: Text(
+                              status,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.blue.shade700,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ))
-                .toList(),
+                      )
+                      .toList(),
+            ),
           ),
         ),
         Expanded(
@@ -974,7 +1148,8 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 padding: EdgeInsets.all(16),
                 itemCount: bookings.length,
                 itemBuilder: (context, index) {
-                  final data = bookings[index].data() as Map<String, dynamic>;
+                  final raw = bookings[index].data() as Map<String, dynamic>;
+                  final data = {...raw, 'bookingId': bookings[index].id};
                   return _bookingListItem(data);
                 },
               );
@@ -1011,7 +1186,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                   CircleAvatar(
                     radius: 20,
                     backgroundColor: Colors.blue.shade100,
-                    child: Icon(Icons.person, color: Colors.blue.shade700, size: 20),
+                    child: Icon(
+                      Icons.person,
+                      color: Colors.blue.shade700,
+                      size: 20,
+                    ),
                   ),
                   SizedBox(width: 12),
                   Expanded(
@@ -1040,14 +1219,18 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Container(
-                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
-                          color: (data['status'] == 'confirmed'
-                                  ? Colors.green
-                                  : data['status'] == 'cancelled'
+                          color:
+                              (data['status'] == 'confirmed'
+                                      ? Colors.green
+                                      : data['status'] == 'cancelled'
                                       ? Colors.red
                                       : Colors.orange)
-                              .withOpacity(0.1),
+                                  .withOpacity(0.1),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -1056,8 +1239,8 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                             color: data['status'] == 'confirmed'
                                 ? Colors.green
                                 : data['status'] == 'cancelled'
-                                    ? Colors.red
-                                    : Colors.orange,
+                                ? Colors.red
+                                : Colors.orange,
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
                           ),
@@ -1084,7 +1267,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade600),
+                      Icon(
+                        Icons.calendar_today,
+                        size: 16,
+                        color: Colors.grey.shade600,
+                      ),
                       SizedBox(width: 6),
                       Text(
                         data['date'] ?? 'No date',
@@ -1094,7 +1281,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                   ),
                   Row(
                     children: [
-                      Icon(Icons.access_time, size: 16, color: Colors.grey.shade600),
+                      Icon(
+                        Icons.access_time,
+                        size: 16,
+                        color: Colors.grey.shade600,
+                      ),
                       SizedBox(width: 6),
                       Text(
                         data['time'] ?? 'No time',
@@ -1109,40 +1300,63 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 data['details'] ?? 'No details provided',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade700,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
               ),
               SizedBox(height: 12),
-              if (data['status'] == 'pending')
+              if (data['status'] == 'pending' || data['status'] == 'confirmed')
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () => _updateBookingStatus(data['bookingId'] ?? '', 'confirmed'),
+                        onPressed: () => _updateBookingStatus(
+                          data['bookingId'] ?? '',
+                          data['status'] == 'pending'
+                              ? 'confirmed'
+                              : 'completed',
+                        ),
                         style: OutlinedButton.styleFrom(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          side: BorderSide(color: Colors.green),
-                        ),
-                        child: Text('Confirm', style: TextStyle(color: Colors.green)),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => _updateBookingStatus(data['bookingId'] ?? '', 'cancelled'),
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(
+                            color: data['status'] == 'pending'
+                                ? Colors.green
+                                : Colors.teal,
                           ),
-                          side: BorderSide(color: Colors.red),
                         ),
-                        child: Text('Cancel', style: TextStyle(color: Colors.red)),
+                        child: Text(
+                          data['status'] == 'pending'
+                              ? 'Confirm'
+                              : 'Complete',
+                          style: TextStyle(
+                            color: data['status'] == 'pending'
+                                ? Colors.green
+                                : Colors.teal,
+                          ),
+                        ),
                       ),
                     ),
+                    if (data['status'] == 'pending') ...[
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _updateBookingStatus(
+                            data['bookingId'] ?? '',
+                            'cancelled',
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            side: BorderSide(color: Colors.red),
+                          ),
+                          child: Text(
+                            'Cancel',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
             ],
@@ -1161,7 +1375,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
         }
 
         final data = snapshot.data!.data() as Map<String, dynamic>?;
-        
+
         return SingleChildScrollView(
           padding: EdgeInsets.all(16),
           child: Column(
@@ -1212,11 +1426,19 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       children: [
                         Icon(Icons.star, color: Colors.yellow, size: 20),
                         SizedBox(width: 4),
-                        Text('4.8', style: TextStyle(color: Colors.white, fontSize: 16)),
+                        Text(
+                          ((data?['rating'] as num?)?.toDouble() ?? 0.0)
+                              .toStringAsFixed(1),
+                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        ),
                         SizedBox(width: 16),
                         Text(
                           'UGX ${data?['hourlyRate'] ?? '0'}/hr',
-                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -1251,11 +1473,17 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       ),
                     ),
                     SizedBox(height: 16),
-                    _profileDetailItem('Experience', '${data?['experience'] ?? 'N/A'} years'),
+                    _profileDetailItem(
+                      'Experience',
+                      '${data?['experience'] ?? 'N/A'} years',
+                    ),
                     _profileDetailItem('City', data?['city'] ?? 'N/A'),
                     _profileDetailItem('Address', data?['address'] ?? 'N/A'),
                     _profileDetailItem('Phone', data?['phonenumber'] ?? 'N/A'),
-                    _profileDetailItem('Email', _auth.currentUser?.email ?? 'N/A'),
+                    _profileDetailItem(
+                      'Email',
+                      _auth.currentUser?.email ?? 'N/A',
+                    ),
                     SizedBox(height: 20),
                     Text(
                       'About',
@@ -1342,10 +1570,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade900,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade900),
             ),
           ),
         ],
@@ -1398,7 +1623,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 CircleAvatar(
                   radius: 30,
                   backgroundColor: Colors.blue.shade100,
-                  child: Icon(Icons.person, color: Colors.blue.shade700, size: 30),
+                  child: Icon(
+                    Icons.person,
+                    color: Colors.blue.shade700,
+                    size: 30,
+                  ),
                 ),
                 SizedBox(width: 16),
                 Expanded(
@@ -1426,12 +1655,13 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: (data['status'] == 'confirmed'
-                            ? Colors.green
-                            : data['status'] == 'cancelled'
+                    color:
+                        (data['status'] == 'confirmed'
+                                ? Colors.green
+                                : data['status'] == 'cancelled'
                                 ? Colors.red
                                 : Colors.orange)
-                        .withOpacity(0.1),
+                            .withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -1440,8 +1670,8 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       color: data['status'] == 'confirmed'
                           ? Colors.green
                           : data['status'] == 'cancelled'
-                              ? Colors.red
-                              : Colors.orange,
+                          ? Colors.red
+                          : Colors.orange,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1458,9 +1688,21 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               ),
             ),
             SizedBox(height: 16),
-            _bookingDetailItem(Icons.calendar_today, 'Date', data['date'] ?? 'N/A'),
-            _bookingDetailItem(Icons.access_time, 'Time', data['time'] ?? 'N/A'),
-            _bookingDetailItem(Icons.attach_money, 'Amount', 'UGX ${data['price'] ?? data['hourlyRate'] ?? '0'}'),
+            _bookingDetailItem(
+              Icons.calendar_today,
+              'Date',
+              data['date'] ?? 'N/A',
+            ),
+            _bookingDetailItem(
+              Icons.access_time,
+              'Time',
+              data['time'] ?? 'N/A',
+            ),
+            _bookingDetailItem(
+              Icons.attach_money,
+              'Amount',
+              'UGX ${data['price'] ?? data['hourlyRate'] ?? '0'}',
+            ),
             SizedBox(height: 16),
             Text(
               'Service Details',
@@ -1480,44 +1722,60 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               ),
             ),
             SizedBox(height: 24),
-            if (data['status'] == 'pending')
+            if (data['status'] == 'pending' || data['status'] == 'confirmed')
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
-                        _updateBookingStatus(data['bookingId'] ?? '', 'confirmed');
+                        _updateBookingStatus(
+                          data['bookingId'] ?? '',
+                          data['status'] == 'pending'
+                              ? 'confirmed'
+                              : 'completed',
+                        );
                         Navigator.pop(context);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: data['status'] == 'pending'
+                            ? Colors.green
+                            : Colors.teal,
                         foregroundColor: Colors.white,
                         padding: EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text('Confirm Booking'),
-                    ),
-                  ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        _updateBookingStatus(data['bookingId'] ?? '', 'cancelled');
-                        Navigator.pop(context);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        side: BorderSide(color: Colors.red),
+                      child: Text(
+                        data['status'] == 'pending'
+                            ? 'Confirm Booking'
+                            : 'Mark Completed',
                       ),
-                      child: Text('Cancel'),
                     ),
                   ),
+                  if (data['status'] == 'pending') ...[
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          _updateBookingStatus(
+                            data['bookingId'] ?? '',
+                            'cancelled',
+                          );
+                          Navigator.pop(context);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: BorderSide(color: Colors.red),
+                        ),
+                        child: Text('Cancel'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             SizedBox(height: 32),
@@ -1545,10 +1803,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey.shade900,
-              ),
+              style: TextStyle(fontSize: 16, color: Colors.grey.shade900),
             ),
           ),
         ],
@@ -1557,23 +1812,38 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
   }
 
   Future<void> _updateBookingStatus(String bookingId, String status) async {
+    if (bookingId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Missing booking id'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     try {
-      await _firestore.collection('bookings').doc(bookingId).update({
-        'status': status,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await _service.updateBookingStatusAsProvider(
+        bookingId: bookingId,
+        status: status,
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Booking $status successfully'),
-          backgroundColor: status == 'confirmed' ? Colors.green : Colors.red,
+          content: Text(
+            status == 'confirmed'
+                ? 'Booking confirmed and earning added to wallet'
+                : status == 'completed'
+                ? 'Booking marked as completed'
+                : 'Booking $status successfully',
+          ),
+          backgroundColor: status == 'cancelled'
+              ? Colors.red
+              : Colors.green,
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
     }
   }

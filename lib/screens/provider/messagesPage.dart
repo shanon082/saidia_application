@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:saidia_app/screens/provider/providerChatPage.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 
 class MessagesPage extends StatefulWidget {
   const MessagesPage({super.key});
@@ -10,221 +11,257 @@ class MessagesPage extends StatefulWidget {
   State<MessagesPage> createState() => _MessagesPageState();
 }
 
+class _ConversationSummary {
+  final String chatId;
+  final String otherUserId;
+  final String otherUserName;
+  final String lastMessage;
+  final Timestamp? lastMessageTime;
+
+  const _ConversationSummary({
+    required this.chatId,
+    required this.otherUserId,
+    required this.otherUserName,
+    required this.lastMessage,
+    required this.lastMessageTime,
+  });
+}
+
 class _MessagesPageState extends State<MessagesPage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirestoreService _service = FirestoreService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _searchController = TextEditingController();
 
+  String _chatIdFor(String a, String b) {
+    final ids = [a, b]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
+
+  String _formatTime(Timestamp? ts) {
+    if (ts == null) return '';
+    final dt = ts.toDate();
+    final now = DateTime.now();
+    if (now.difference(dt).inDays == 0) return DateFormat('HH:mm').format(dt);
+    return DateFormat('dd MMM').format(dt);
+  }
+
+  Future<List<_ConversationSummary>> _loadConversationSummaries({
+    required String uid,
+    required Set<String> chatIds,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> chatDocs,
+  }) async {
+    final chatDocMap = {for (final d in chatDocs) d.id: d.data()};
+
+    final futures = chatIds.map((chatId) async {
+      final ids = chatId.split('_');
+      final fallbackOther = ids.firstWhere(
+        (id) => id != uid,
+        orElse: () => chatId,
+      );
+
+      final messageSnap = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      if (messageSnap.docs.isEmpty) return null;
+
+      final msg = messageSnap.docs.first.data();
+      final chatMeta = chatDocMap[chatId];
+      final participants =
+          (chatMeta?['participants'] as List?)?.cast<String>() ?? [];
+      final other = participants.firstWhere(
+        (id) => id != uid,
+        orElse: () => fallbackOther,
+      );
+      final userSnap = await _firestore.collection('users').doc(other).get();
+      final userNameRaw = userSnap.data()?['name']?.toString().trim();
+      final otherName = (userNameRaw != null && userNameRaw.isNotEmpty)
+          ? userNameRaw
+          : other;
+
+      return _ConversationSummary(
+        chatId: chatId,
+        otherUserId: other,
+        otherUserName: otherName,
+        lastMessage: (msg['message']?.toString() ?? '').trim(),
+        lastMessageTime: msg['timestamp'] as Timestamp?,
+      );
+    }).toList();
+
+    final items = (await Future.wait(
+      futures,
+    )).whereType<_ConversationSummary>().toList();
+    items.sort((a, b) {
+      final aMs = a.lastMessageTime?.millisecondsSinceEpoch ?? 0;
+      final bMs = b.lastMessageTime?.millisecondsSinceEpoch ?? 0;
+      return bMs.compareTo(aMs);
+    });
+    return items;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final uid = _service.currentUid;
+    if (uid == null) {
+      return const Scaffold(body: Center(child: Text('Please log in again.')));
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Messages'),
+        title: const Text('Messages'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
       ),
       body: Column(
         children: [
-          // Search Bar
           Padding(
-            padding: EdgeInsets.all(16),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Search conversations...',
-                  hintStyle: TextStyle(color: Colors.grey.shade600),
-                  prefixIcon: Icon(Icons.search, color: Colors.blue.shade700),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search conversation by user id...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                onChanged: (value) {
-                  setState(() {});
-                },
               ),
+              onChanged: (_) => setState(() {}),
             ),
           ),
-
-          // Conversations List
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection('chats')
-                  .where('participants', arrayContains: _auth.currentUser!.uid)
-                  .orderBy('lastMessageTime', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _service.getProviderBookingsStream(),
+              builder: (context, bookingsSnapshot) {
+                if (bookingsSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (bookingsSnapshot.hasError) {
                   return Center(
-                    child: CircularProgressIndicator(
-                      color: Colors.blue.shade700,
+                    child: Text(
+                      'Failed to load bookings: ${bookingsSnapshot.error}',
                     ),
                   );
                 }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.chat_bubble_outline, size: 80, color: Colors.grey.shade400),
-                        SizedBox(height: 16),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Start conversations with your customers',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
+                final bookingDocs = bookingsSnapshot.data?.docs ?? [];
+                final bookingChatIds = <String>{};
+                for (final doc in bookingDocs) {
+                  final customerId = doc.data()['customerId']?.toString();
+                  if (customerId != null && customerId.isNotEmpty) {
+                    bookingChatIds.add(_chatIdFor(uid, customerId));
+                  }
                 }
 
-                final chats = snapshot.data!.docs;
+                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _service.getProviderChatsStream(),
+                  builder: (context, chatSnapshot) {
+                    final chatDocs =
+                        chatSnapshot.data?.docs ??
+                        <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                    final chatIds = {
+                      ...bookingChatIds,
+                      ...chatDocs.map((d) => d.id),
+                    };
 
-                return ListView.builder(
-                  padding: EdgeInsets.all(0),
-                  itemCount: chats.length,
-                  itemBuilder: (context, index) {
-                    final chat = chats[index];
-                    final data = chat.data() as Map<String, dynamic>;
-                    
-                    return _buildConversationCard(data);
+                    if (chatIds.isEmpty) {
+                      return const Center(child: Text('No messages yet'));
+                    }
+
+                    return FutureBuilder<List<_ConversationSummary>>(
+                      future: _loadConversationSummaries(
+                        uid: uid,
+                        chatIds: chatIds,
+                        chatDocs: chatDocs,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Failed to load messages: ${snapshot.error}',
+                            ),
+                          );
+                        }
+
+                        final all = snapshot.data ?? [];
+                        final query = _searchController.text
+                            .trim()
+                            .toLowerCase();
+                        final filtered = all.where((c) {
+                          if (query.isEmpty) return true;
+                          return c.otherUserId.toLowerCase().contains(query) ||
+                              c.otherUserName.toLowerCase().contains(query);
+                        }).toList();
+
+                        if (filtered.isEmpty) {
+                          return const Center(child: Text('No messages yet'));
+                        }
+
+                        return ListView.separated(
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final convo = filtered[index];
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue.shade50,
+                                child: Icon(
+                                  Icons.person,
+                                  color: Colors.blue.shade700,
+                                ),
+                              ),
+                              title: Text(
+                                convo.otherUserName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${convo.lastMessage.isEmpty ? 'No messages yet' : convo.lastMessage}\n${convo.otherUserId}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Text(
+                                _formatTime(convo.lastMessageTime),
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ProviderChatPage(
+                                      otherUserId: convo.otherUserId,
+                                      otherUserName: convo.otherUserName,
+                                      chatId: convo.chatId,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
                   },
                 );
               },
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Start new conversation
-        },
-        backgroundColor: Colors.blue.shade700,
-        child: Icon(Icons.message, color: Colors.white),
-      ),
-    );
-  }
-
-  Widget _buildConversationCard(Map<String, dynamic> data) {
-    final lastMessageTime = (data['lastMessageTime'] as Timestamp?)?.toDate();
-    final isUnread = data['unreadCount'] != null && data['unreadCount'] > 0;
-
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: ListTile(
-        leading: Stack(
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: Colors.blue.shade100,
-              child: Icon(Icons.person, color: Colors.blue.shade700, size: 24),
-            ),
-            if (isUnread)
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.blue,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        title: Row(
-          children: [
-            Text(
-              data['customerName'] ?? 'Customer',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: isUnread ? Colors.grey.shade900 : Colors.grey.shade700,
-              ),
-            ),
-            if (isUnread)
-              Container(
-                margin: EdgeInsets.only(left: 8),
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${data['unreadCount']}',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        subtitle: Text(
-          data['lastMessage'] ?? 'No messages yet',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: isUnread ? Colors.grey.shade800 : Colors.grey.shade600,
-          ),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (lastMessageTime != null)
-              Text(
-                DateFormat('HH:mm').format(lastMessageTime),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade500,
-                ),
-              ),
-            SizedBox(height: 4),
-            if (isUnread)
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.blue,
-                ),
-              ),
-          ],
-        ),
-        onTap: () {
-          // Navigate to chat screen
-        },
       ),
     );
   }

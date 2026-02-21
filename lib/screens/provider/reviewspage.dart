@@ -1,421 +1,145 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 
-class ReviewsPage extends StatefulWidget {
-  const ReviewsPage({super.key});
+class ReviewsPage extends StatelessWidget {
+  ReviewsPage({super.key});
 
-  @override
-  State<ReviewsPage> createState() => _ReviewsPageState();
-}
-
-class _ReviewsPageState extends State<ReviewsPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
-  double _averageRating = 4.8;
-  int _totalReviews = 128;
-  List<int> _ratingDistribution = [2, 5, 10, 45, 66]; // 1-5 stars
+  final FirestoreService _service = FirestoreService();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Reviews'),
+        title: const Text('Reviews'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-        elevation: 1,
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Rating Summary Card
-            Container(
-              padding: EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _averageRating.toStringAsFixed(1),
-                            style: TextStyle(
-                              fontSize: 48,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade900,
-                            ),
-                          ),
-                          Row(
-                            children: List.generate(5, (index) => Icon(
-                              Icons.star,
-                              color: index < _averageRating.floor() 
-                                  ? Colors.yellow 
-                                  : Colors.grey.shade300,
-                              size: 24,
-                            )),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            '$_totalReviews reviews',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(width: 32),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            for (int i = 5; i >= 1; i--) 
-                              _buildRatingBar(i, _ratingDistribution[i-1]),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 20),
-                  Divider(height: 1, color: Colors.grey.shade200),
-                  SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        children: [
-                          Text(
-                            '98%',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                          Text(
-                            'Positive',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey.shade200,
-                      ),
-                      Column(
-                        children: [
-                          Text(
-                            '85%',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue,
-                            ),
-                          ),
-                          Text(
-                            'Response Rate',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Container(
-                        width: 1,
-                        height: 40,
-                        color: Colors.grey.shade200,
-                      ),
-                      Column(
-                        children: [
-                          Text(
-                            '4.2',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange,
-                            ),
-                          ),
-                          Text(
-                            'Response Time',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 24),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _service.getProviderReviewsStream(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Failed to load reviews: ${snapshot.error}'),
+            );
+          }
 
-            // Filter Buttons
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('All Reviews', true),
-                  SizedBox(width: 8),
-                  _buildFilterChip('5 Stars', false),
-                  SizedBox(width: 8),
-                  _buildFilterChip('4 Stars', false),
-                  SizedBox(width: 8),
-                  _buildFilterChip('3 Stars', false),
-                  SizedBox(width: 8),
-                  _buildFilterChip('With Comments', false),
-                ],
-              ),
-            ),
-            SizedBox(height: 16),
+          final docs = [...(snapshot.data?.docs ?? [])];
+          docs.sort((a, b) {
+            final aTs = a.data()['timestamp'] as Timestamp?;
+            final bTs = b.data()['timestamp'] as Timestamp?;
+            return (bTs?.millisecondsSinceEpoch ?? 0).compareTo(
+              aTs?.millisecondsSinceEpoch ?? 0,
+            );
+          });
 
-            // Reviews List
-            StreamBuilder<QuerySnapshot>(
-              stream: _firestore
-                  .collection('reviews')
-                  .where('providerId', isEqualTo: _auth.currentUser!.uid)
-                  .orderBy('timestamp', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
-                }
+          final ratings = docs
+              .map((d) => (d.data()['rating'] as num?)?.toDouble() ?? 0)
+              .where((r) => r > 0)
+              .toList();
+          final total = ratings.length;
+          final avg = total == 0
+              ? 0.0
+              : ratings.reduce((a, b) => a + b) / total;
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      children: [
-                        Icon(Icons.reviews, size: 80, color: Colors.grey.shade400),
-                        SizedBox(height: 16),
-                        Text(
-                          'No reviews yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Start providing services to get reviews',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
+          if (docs.isEmpty) {
+            return const Center(child: Text('No reviews yet'));
+          }
 
-                final reviews = snapshot.data!.docs;
-
-                return Column(
-                  children: reviews.map((review) {
-                    final data = review.data() as Map<String, dynamic>;
-                    return _buildReviewCard(data);
-                  }).toList(),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRatingBar(int stars, int count) {
-    final percentage = (count / _totalReviews * 100).toInt();
-    
-    return Padding(
-      padding: EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Text('$stars', style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
-          SizedBox(width: 8),
-          Icon(Icons.star, color: Colors.yellow, size: 16),
-          SizedBox(width: 8),
-          Expanded(
-            child: Container(
-              height: 8,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: FractionallySizedBox(
-                alignment: Alignment.centerLeft,
-                widthFactor: percentage / 100,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.yellow,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(width: 8),
-          Text(
-            '$percentage%',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, bool selected) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: selected ? Colors.blue.shade700 : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: selected ? Colors.blue.shade700 : Colors.grey.shade300,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: selected ? Colors.white : Colors.grey.shade700,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReviewCard(Map<String, dynamic> data) {
-    final rating = (data['rating'] ?? 0).toDouble();
-    final timestamp = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
-
-    return Container(
-      margin: EdgeInsets.only(bottom: 16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          return Column(
             children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.blue.shade100,
-                child: Icon(Icons.person, color: Colors.blue.shade700, size: 24),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
                   children: [
                     Text(
-                      data['customerName'] ?? 'Anonymous',
-                      style: TextStyle(
-                        fontSize: 16,
+                      avg.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontSize: 36,
                         fontWeight: FontWeight.bold,
-                        color: Colors.grey.shade900,
                       ),
                     ),
-                    SizedBox(height: 2),
-                    Row(
-                      children: [
-                        ...List.generate(5, (index) => Icon(
-                          Icons.star,
-                          size: 16,
-                          color: index < rating.floor() ? Colors.yellow : Colors.grey.shade300,
-                        )),
-                        SizedBox(width: 8),
-                        Text(
-                          DateFormat('dd MMM yyyy').format(timestamp),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
+                    const SizedBox(width: 10),
+                    const Icon(Icons.star, color: Colors.amber),
+                    const SizedBox(width: 8),
+                    Text('$total reviews'),
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(Icons.more_vert, color: Colors.grey.shade500),
-                onPressed: () {
-                  // More options
-                },
-              ),
-            ],
-          ),
-          SizedBox(height: 12),
-          Text(
-            data['comment'] ?? 'No comment provided.',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade800,
-              height: 1.5,
-            ),
-          ),
-          SizedBox(height: 12),
-          if (data['serviceType'] != null)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                data['serviceType'],
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade700,
+              Expanded(
+                child: ListView.builder(
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data();
+                    final customerId = data['customerId']?.toString();
+                    final created = (data['timestamp'] as Timestamp?)?.toDate();
+                    final rating = (data['rating'] as num?)?.toDouble() ?? 0;
+
+                    return FutureBuilder<
+                      DocumentSnapshot<Map<String, dynamic>>
+                    >(
+                      future: customerId == null
+                          ? null
+                          : _firestore
+                                .collection('users')
+                                .doc(customerId)
+                                .get(),
+                      builder: (context, userSnap) {
+                        final customerName =
+                            userSnap.data?.data()?['name']?.toString() ??
+                            'Customer';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.amber.shade100,
+                            child: const Icon(Icons.person),
+                          ),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  customerName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              ...List.generate(
+                                5,
+                                (i) => Icon(
+                                  i < rating.floor()
+                                      ? Icons.star
+                                      : Icons.star_border,
+                                  size: 16,
+                                  color: Colors.amber,
+                                ),
+                              ),
+                            ],
+                          ),
+                          subtitle: Text(
+                            '${data['comment'] ?? ''}\n${created == null ? '-' : DateFormat('dd MMM yyyy').format(created)}',
+                          ),
+                          isThreeLine: true,
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
-            ),
-          SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton.icon(
-                onPressed: () {
-                  // Reply to review
-                },
-                icon: Icon(Icons.reply, size: 16),
-                label: Text('Reply'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.blue.shade700,
-                ),
-              ),
             ],
-          ),
-        ],
+          );
+        },
       ),
     );
   }

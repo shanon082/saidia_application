@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:saidia_app/screens/customers/chatPage.dart';
 import 'package:saidia_app/services/firestore_services.dart';
 
 class NotificationPage extends StatelessWidget {
@@ -33,6 +34,8 @@ class NotificationPage extends StatelessWidget {
         return Icons.chat_bubble;
       case 'provider_application':
         return Icons.verified;
+      case 'review':
+        return Icons.rate_review_outlined;
       default:
         return Icons.notifications;
     }
@@ -50,8 +53,65 @@ class NotificationPage extends StatelessWidget {
         return Colors.orange;
       case 'provider_application':
         return Colors.purple;
+      case 'review':
+        return Colors.amber;
       default:
         return Colors.grey;
+    }
+  }
+
+  Future<String?> _resolveProviderName(String providerId) async {
+    try {
+      final appDoc = await FirebaseFirestore.instance
+          .collection('provider_applications')
+          .doc(providerId)
+          .get();
+      final appData = appDoc.data();
+      final specialization = appData?['specialization']?.toString();
+      if (specialization != null && specialization.trim().isNotEmpty) {
+        return specialization.trim();
+      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(providerId)
+          .get();
+      final userName = userDoc.data()?['name']?.toString();
+      if (userName != null && userName.trim().isNotEmpty) {
+        return userName.trim();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _handleNotificationTap(
+    BuildContext context,
+    String docId,
+    Map<String, dynamic> notificationData,
+  ) async {
+    final isRead = (notificationData['isRead'] as bool?) ?? false;
+    if (!isRead) {
+      await _service.markNotificationAsRead(docId);
+    }
+
+    final type = (notificationData['type'] as String?) ?? '';
+    final payloadRaw = notificationData['data'];
+    final payload = payloadRaw is Map<String, dynamic>
+        ? payloadRaw
+        : <String, dynamic>{};
+
+    if (type == 'chat') {
+      final senderId = payload['senderId']?.toString() ?? '';
+      if (senderId.isEmpty) return;
+      final providerName = await _resolveProviderName(senderId);
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              ChatPage(providerId: senderId, providerName: providerName),
+        ),
+      );
     }
   }
 
@@ -165,11 +225,8 @@ class NotificationPage extends StatelessWidget {
                                 color: Colors.blue,
                               )
                             : null,
-                        onTap: () {
-                          if (!isRead) {
-                            _service.markNotificationAsRead(doc.id);
-                          }
-                        },
+                        onTap: () =>
+                            _handleNotificationTap(context, doc.id, data),
                       ),
                     );
                   },

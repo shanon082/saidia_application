@@ -21,6 +21,135 @@ class BookingHistoryPage extends StatelessWidget {
     }
   }
 
+  Widget _ratingStars({
+    required double rating,
+    ValueChanged<double>? onChanged,
+    double size = 22,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        final starValue = index + 1.0;
+        final isActive = rating >= starValue;
+        return IconButton(
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints(),
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          onPressed: onChanged == null ? null : () => onChanged(starValue),
+          icon: Icon(
+            isActive ? Icons.star : Icons.star_border,
+            color: Colors.amber,
+            size: size,
+          ),
+        );
+      }),
+    );
+  }
+
+  Future<void> _showReviewSheet({
+    required BuildContext context,
+    required String bookingId,
+    required Map<String, dynamic> bookingData,
+    Map<String, dynamic>? existingReview,
+  }) async {
+    double rating = (existingReview?['rating'] as num?)?.toDouble() ?? 5;
+    final commentController = TextEditingController(
+      text: existingReview?['comment']?.toString() ?? '',
+    );
+    bool submitting = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Rate ${bookingData['serviceType'] ?? 'Service'}',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _ratingStars(
+                    rating: rating,
+                    onChanged: (val) => setModalState(() => rating = val),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Write a short review (optional)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: submitting
+                          ? null
+                          : () async {
+                              try {
+                                setModalState(() => submitting = true);
+                                await _service.submitReview(
+                                  bookingId: bookingId,
+                                  rating: rating,
+                                  comment: commentController.text,
+                                );
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Review submitted successfully',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Failed: $e')),
+                                  );
+                                }
+                                setModalState(() => submitting = false);
+                              }
+                            },
+                      child: Text(
+                        existingReview == null
+                            ? 'Submit Review'
+                            : 'Update Review',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -66,42 +195,101 @@ class BookingHistoryPage extends StatelessWidget {
               final status = (data['status'] as String?) ?? 'pending';
               final amount = (data['estimatedAmount'] as num?)?.toDouble() ?? 0;
               final createdAt = data['createdAt'] as Timestamp?;
+              final bookingId = bookings[index].id;
+              final providerId = data['providerId']?.toString() ?? '';
+              final statusLower = status.toLowerCase();
+              final canReview = providerId.isNotEmpty &&
+                  (statusLower == 'completed' || statusLower == 'confirmed');
 
-              return ListTile(
-                title: Text(
-                  serviceType,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                subtitle: Text(
-                  '$details\n$date $time\nCreated: ${createdAt == null ? '-' : DateFormat('dd MMM yyyy, HH:mm').format(createdAt.toDate())}',
-                ),
-                isThreeLine: true,
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('UGX ${amount.toStringAsFixed(0)}'),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _statusColor(status).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        status,
-                        style: TextStyle(
-                          color: _statusColor(status),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+              return FutureBuilder<QueryDocumentSnapshot<Map<String, dynamic>>?>(
+                future: canReview
+                    ? _service.getReviewForBooking(bookingId)
+                    : Future.value(null),
+                builder: (context, reviewSnapshot) {
+                  final existingReviewDoc = reviewSnapshot.data;
+                  final existingReview = existingReviewDoc?.data();
+                  final existingRating =
+                      (existingReview?['rating'] as num?)?.toDouble() ?? 0.0;
+
+                  return Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          title: Text(
+                            serviceType,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text(
+                            '$details\n$date $time\nCreated: ${createdAt == null ? '-' : DateFormat('dd MMM yyyy, HH:mm').format(createdAt.toDate())}',
+                          ),
+                          isThreeLine: true,
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('UGX ${amount.toStringAsFixed(0)}'),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _statusColor(status).withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  status,
+                                  style: TextStyle(
+                                    color: _statusColor(status),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                        if (canReview)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            child: Row(
+                              children: [
+                                if (existingReview != null)
+                                  _ratingStars(rating: existingRating, size: 18),
+                                if (existingReview != null)
+                                  const SizedBox(width: 10),
+                                TextButton.icon(
+                                  onPressed: () => _showReviewSheet(
+                                    context: context,
+                                    bookingId: bookingId,
+                                    bookingData: data,
+                                    existingReview: existingReview,
+                                  ),
+                                  icon: Icon(
+                                    existingReview == null
+                                        ? Icons.star_outline
+                                        : Icons.edit,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    existingReview == null
+                                        ? 'Rate Service'
+                                        : 'Edit Review',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               );
             },
           );

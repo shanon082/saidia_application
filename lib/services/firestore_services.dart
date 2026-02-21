@@ -306,6 +306,14 @@ class FirestoreService {
       type: 'booking',
       data: {'bookingId': bookingRef.id, 'providerId': providerId},
     );
+
+    await createNotification(
+      userId: providerId,
+      title: 'New Booking Request',
+      message: 'You have received a new booking request.',
+      type: 'booking',
+      data: {'bookingId': bookingRef.id, 'customerId': currentUid},
+    );
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getCustomerBookingsStream() {
@@ -604,11 +612,25 @@ class FirestoreService {
     required String providerId,
     required String message,
   }) async {
+    await sendMessageToUser(recipientId: providerId, message: message);
+  }
+
+  Future<void> sendMessageToUser({
+    required String recipientId,
+    required String message,
+  }) async {
     if (currentUid == null) {
       throw Exception('User not authenticated');
     }
 
-    final chatId = _generateChatId(currentUid!, providerId);
+    final chatId = _generateChatId(currentUid!, recipientId);
+
+    await _firestore.collection('chats').doc(chatId).set({
+      'participants': [currentUid, recipientId],
+      'lastMessage': message,
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
     await _firestore
         .collection('chats')
@@ -619,6 +641,299 @@ class FirestoreService {
           'message': message,
           'timestamp': FieldValue.serverTimestamp(),
         });
+
+    await createNotification(
+      userId: recipientId,
+      title: 'New Message',
+      message: message.length > 80 ? '${message.substring(0, 80)}...' : message,
+      type: 'chat',
+      data: {'chatId': chatId, 'senderId': currentUid},
+    );
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getProviderBookingsStream() {
+    if (currentUid == null) return const Stream.empty();
+
+    return _firestore
+        .collection('bookings')
+        .where('providerId', isEqualTo: currentUid)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getProviderReviewsStream() {
+    if (currentUid == null) return const Stream.empty();
+
+    return _firestore
+        .collection('reviews')
+        .where('providerId', isEqualTo: currentUid)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getProviderChatsStream() {
+    if (currentUid == null) return const Stream.empty();
+
+    return _firestore
+        .collection('chats')
+        .where('participants', arrayContains: currentUid)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getProviderPaymentsStream() {
+    if (currentUid == null) return const Stream.empty();
+
+    return _firestore
+        .collection('payments')
+        .where('userId', isEqualTo: currentUid)
+        .snapshots();
+  }
+
+  Future<QueryDocumentSnapshot<Map<String, dynamic>>?> getReviewForBooking(
+    String bookingId,
+  ) async {
+    if (currentUid == null) return null;
+
+    final snap = await _firestore
+        .collection('reviews')
+        .where('bookingId', isEqualTo: bookingId)
+        .where('customerId', isEqualTo: currentUid)
+        .limit(1)
+        .get();
+
+    if (snap.docs.isEmpty) return null;
+    return snap.docs.first;
+  }
+
+  Future<void> submitReview({
+    required String bookingId,
+    required double rating,
+    required String comment,
+  }) async {
+    if (currentUid == null) throw Exception('User not authenticated');
+
+    if (rating < 1 || rating > 5) {
+      throw Exception('Rating must be between 1 and 5');
+    }
+
+    final bookingRef = _firestore.collection('bookings').doc(bookingId);
+    final bookingSnap = await bookingRef.get();
+
+    if (!bookingSnap.exists) {
+      throw Exception('Booking not found');
+    }
+
+    final booking = bookingSnap.data()!;
+    if (booking['customerId'] != currentUid) {
+      throw Exception('Unauthorized');
+    }
+
+    final bookingStatus = (booking['status']?.toString().toLowerCase() ?? '');
+    if (bookingStatus != 'confirmed' && bookingStatus != 'completed') {
+      throw Exception('You can review only confirmed/completed bookings');
+    }
+
+    final providerId = booking['providerId']?.toString();
+    if (providerId == null || providerId.isEmpty) {
+      throw Exception('Provider is missing for this booking');
+    }
+
+    final userSnap = await _firestore.collection('users').doc(currentUid).get();
+    final customerName = userSnap.data()?['name']?.toString() ?? 'Customer';
+
+    final reviewId = '${bookingId}_$currentUid';
+    await _firestore.collection('reviews').doc(reviewId).set({
+      'bookingId': bookingId,
+      'providerId': providerId,
+      'customerId': currentUid,
+      'customerName': customerName,
+      'serviceType': booking['serviceType'],
+      'rating': rating,
+      'comment': comment.trim(),
+      'timestamp': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    // Best-effort aggregate update; keep review submission successful even if
+    // provider_applications update is blocked by rules.
+    try {
+      final reviewsSnap = await _firestore
+          .collection('reviews')
+          .where('providerId', isEqualTo: providerId)
+          .get();
+      final ratings = reviewsSnap.docs
+          .map((d) => (d.data()['rating'] as num?)?.toDouble() ?? 0.0)
+          .where((v) => v > 0)
+          .toList();
+      final reviewCount = ratings.length;
+      final avgRating = reviewCount == 0
+          ? 0.0
+          : ratings.reduce((a, b) => a + b) / reviewCount;
+
+      await _firestore.collection('provider_applications').doc(providerId).set({
+        'rating': avgRating,
+        'reviewCount': reviewCount,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+
+    // Best-effort notification; not critical for successful review save.
+    try {
+      await createNotification(
+        userId: providerId,
+        title: 'New Review',
+        message:
+            '$customerName rated your service ${rating.toStringAsFixed(1)} stars.',
+        type: 'review',
+        data: {
+          'bookingId': bookingId,
+          'providerId': providerId,
+          'rating': rating,
+        },
+      );
+    } catch (_) {}
+  }
+
+  Future<void> updateBookingStatusAsProvider({
+    required String bookingId,
+    required String status,
+  }) async {
+    if (currentUid == null) throw Exception('User not authenticated');
+
+    final bookingRef = _firestore.collection('bookings').doc(bookingId);
+    final bookingSnap = await bookingRef.get();
+    if (!bookingSnap.exists) {
+      throw Exception('Booking not found');
+    }
+
+    final booking = bookingSnap.data()!;
+    if (booking['providerId'] != currentUid) {
+      throw Exception('Unauthorized');
+    }
+
+    final previousStatus = booking['status']?.toString().toLowerCase();
+
+    await bookingRef.update({
+      'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Credit provider once when moving to confirmed.
+    if (status == 'confirmed' && previousStatus != 'confirmed') {
+      await _creditProviderForBooking(bookingId: bookingId, booking: booking);
+    }
+
+    final customerId = booking['customerId']?.toString();
+    if (customerId != null && customerId.isNotEmpty) {
+      final title = status == 'confirmed'
+          ? 'Booking Confirmed'
+          : status == 'completed'
+          ? 'Booking Completed'
+          : status == 'cancelled'
+          ? 'Booking Cancelled'
+          : 'Booking Updated';
+      final message = status == 'confirmed'
+          ? 'Your booking has been confirmed by the provider.'
+          : status == 'completed'
+          ? 'Your booking has been marked as completed.'
+          : status == 'cancelled'
+          ? 'Your booking was cancelled by the provider.'
+          : 'Your booking status is now $status.';
+      await createNotification(
+        userId: customerId,
+        title: title,
+        message: message,
+        type: 'booking',
+        data: {'bookingId': bookingId, 'providerId': currentUid},
+      );
+    }
+  }
+
+  Future<void> _creditProviderForBooking({
+    required String bookingId,
+    required Map<String, dynamic> booking,
+  }) async {
+    if (currentUid == null) throw Exception('User not authenticated');
+
+    await ensureWalletExists();
+
+    final amount = (booking['estimatedAmount'] as num?)?.toDouble() ?? 2500.0;
+    if (amount <= 0) return;
+
+    final walletRef = _firestore.collection('wallets').doc(currentUid);
+    final walletTxRef = walletRef
+        .collection('transactions')
+        .doc('booking_$bookingId');
+    final paymentRef = _firestore
+        .collection('payments')
+        .doc('booking_earning_${currentUid}_$bookingId');
+
+    await _firestore.runTransaction((tx) async {
+      final existingPayment = await tx.get(paymentRef);
+      if (existingPayment.exists) return;
+
+      final walletSnap = await tx.get(walletRef);
+      final balance =
+          (walletSnap.data()?['balance'] as num?)?.toDouble() ?? 0.0;
+      final next = balance + amount;
+
+      tx.update(walletRef, {
+        'balance': next,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      tx.set(walletTxRef, {
+        'userId': currentUid,
+        'type': 'credit',
+        'amount': amount,
+        'currency': booking['currency'] ?? 'UGX',
+        'method': 'booking_earning',
+        'description': 'Booking earning',
+        'bookingId': bookingId,
+        'customerId': booking['customerId'],
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      tx.set(paymentRef, {
+        'userId': currentUid,
+        'providerId': currentUid,
+        'bookingId': bookingId,
+        'customerId': booking['customerId'],
+        'amount': amount,
+        'currency': booking['currency'] ?? 'UGX',
+        'type': 'booking_earning',
+        'status': 'completed',
+        'method': 'wallet_credit',
+        'reference': paymentRef.id,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  Future<void> addProviderBusinessImage(String imageUrl) async {
+    if (currentUid == null) throw Exception('User not authenticated');
+
+    await _firestore.collection('provider_applications').doc(currentUid).set({
+      'businessImages': FieldValue.arrayUnion([imageUrl]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> removeProviderBusinessImage(String imageUrl) async {
+    if (currentUid == null) throw Exception('User not authenticated');
+
+    await _firestore.collection('provider_applications').doc(currentUid).set({
+      'businessImages': FieldValue.arrayRemove([imageUrl]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>>
+  getProviderApplicationStream() {
+    if (currentUid == null) return const Stream.empty();
+    return _firestore
+        .collection('provider_applications')
+        .doc(currentUid)
+        .snapshots();
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getChatStream(String providerId) {

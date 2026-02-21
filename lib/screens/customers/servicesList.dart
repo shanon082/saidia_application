@@ -16,6 +16,11 @@ class _ServicesListPageState extends State<ServicesListPage> {
   String _searchQuery = '';
   String _sortBy = 'rating';
 
+  double _toDouble(dynamic value, [double fallback = 0]) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '') ?? fallback;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -259,12 +264,12 @@ class _ServicesListPageState extends State<ServicesListPage> {
           final bData = b.data() as Map<String, dynamic>;
           
           if (_sortBy == 'rating') {
-            final aRating = (aData['rating'] ?? 4.0).toDouble();
-            final bRating = (bData['rating'] ?? 4.0).toDouble();
+            final aRating = _toDouble(aData['rating']);
+            final bRating = _toDouble(bData['rating']);
             return bRating.compareTo(aRating);
           } else {
-            final aPrice = (aData['hourlyRate'] ?? 0).toDouble();
-            final bPrice = (bData['hourlyRate'] ?? 0).toDouble();
+            final aPrice = _toDouble(aData['hourlyRate']);
+            final bPrice = _toDouble(bData['hourlyRate']);
             return aPrice.compareTo(bPrice);
           }
         });
@@ -277,8 +282,8 @@ class _ServicesListPageState extends State<ServicesListPage> {
             final providerId = providers[index].id;
             final businessImages = (data['businessImages'] as List?)?.cast<String>() ?? [];
             final profileImage = data['imageUrl'] ?? '';
-            final rating = (data['rating'] ?? 4.0).toDouble();
-            final reviewCount = data['reviewCount'] ?? 128;
+            final rating = _toDouble(data['rating']);
+            final reviewCount = (data['reviewCount'] as num?)?.toInt() ?? 0;
 
             return GestureDetector(
               onTap: () {
