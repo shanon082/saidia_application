@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:saidia_app/auth/signupPage.dart';
-import 'package:saidia_app/screens/admin/adminDashboard.dart';
+import 'package:saidia_app/screens/homepage.dart';
 // import 'package:saidia_app/screens/admin/createAdmin.dart';
-import 'package:saidia_app/screens/customers/customerDashboard.dart';
-import 'package:saidia_app/screens/provider/providerDashboard.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -71,59 +69,35 @@ class _LoginPageState extends State<LoginPage> {
 
       print('User role: $role, Provider status: $providerStatus');
 
-      // Determine destination based on role
-      Widget destination;
-
-      switch (role) {
-        case 'admin':
-          destination = const AdminDashboard();
-          break;
-        case 'provider':
-          // Check if provider is approved
-          if (providerStatus == 'approved') {
-            destination = const ProviderDashboard();
-          } else {
-            // Show customer dashboard if provider is pending or rejected
-            destination = const CustomerDashboard();
-
-            if (providerStatus == 'pending') {
-              // Show pending status message
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Your provider application is under review'),
-                    backgroundColor: Colors.orange,
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              });
-            } else if (providerStatus == 'rejected') {
-              // Show rejected status message
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Your provider application was rejected'),
-                    backgroundColor: Colors.red,
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              });
-            }
-          }
-          break;
-        default:
-          if (providerStatus == 'approved') {
-            destination = const ProviderDashboard();
-            break;
-          }
-          destination = const CustomerDashboard();
+      if (role == 'provider' && providerStatus == 'pending') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your provider application is under review'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        });
+      } else if (role == 'provider' && providerStatus == 'rejected') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Your provider application was rejected'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        });
       }
 
-      // Navigate to appropriate dashboard
+      // Route through HomePage so all role-based routing is resolved in one place.
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => destination),
+          MaterialPageRoute(builder: (_) => const HomePage()),
           (route) => false,
         );
       }

@@ -7,17 +7,24 @@ import 'package:saidia_app/screens/provider/providerDashboard.dart';
 import 'package:saidia_app/services/firestore_services.dart';
 
 class HomePage extends StatelessWidget {
-  const HomePage({Key? key}) : super(key: key);
+  const HomePage({super.key});
+
+  String _normalizeRole(dynamic rawRole) {
+    final role = rawRole?.toString().trim().toLowerCase() ?? '';
+    if (role.contains('admin')) return 'admin';
+    if (role.contains('provider')) return 'provider';
+    return 'customer';
+  }
+
+  String _normalizeProviderStatus(dynamic rawStatus) {
+    return rawStatus?.toString().trim().toLowerCase() ?? '';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirestoreService().getUserStream(),
       builder: (context, snapshot) {
-        print('HomePage StreamBuilder state: ${snapshot.connectionState}');
-        print('HomePage StreamBuilder hasData: ${snapshot.hasData}');
-        print('HomePage StreamBuilder error: ${snapshot.error}');
-
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
@@ -25,148 +32,85 @@ class HomePage extends StatelessWidget {
         }
 
         if (snapshot.hasError) {
-          print('HomePage error details: ${snapshot.error}');
           return Scaffold(
             body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Error: ${snapshot.error}',
-                    style: const TextStyle(color: Colors.red),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      FirebaseAuth.instance.signOut();
-                      Navigator.pushNamedAndRemoveUntil(
-                        context,
-                        '/login',
-                        (route) => false,
-                      );
-                    },
-                    child: const Text('Go to Login'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 60, color: Colors.red),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Failed to load profile: ${snapshot.error}',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await FirebaseAuth.instance.signOut();
+                        if (context.mounted) {
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/login',
+                            (route) => false,
+                          );
+                        }
+                      },
+                      child: const Text('Back to Login'),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         }
 
         if (!snapshot.hasData || !snapshot.data!.exists) {
-          print('User document does not exist or has no data');
-
-          // Try to get current user data to debug
-          final currentUser = FirebaseAuth.instance.currentUser;
-          print('Current auth user: ${currentUser?.uid}');
-
           return Scaffold(
             body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('User profile not found'),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () async {
-                      // Try to create profile if it doesn't exist
-                      final user = FirebaseAuth.instance.currentUser;
-                      if (user != null) {
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(user.uid)
-                              .set({
-                                'uid': user.uid,
-                                'name': user.displayName ?? 'User',
-                                'email': user.email ?? '',
-                                'role': 'customer',
-                                'createdAt': FieldValue.serverTimestamp(),
-                              });
-                          // Refresh
-                          Navigator.pushReplacement(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'User profile not found. Please login again.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await FirebaseAuth.instance.signOut();
+                        if (context.mounted) {
+                          Navigator.pushNamedAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (_) => const HomePage()),
+                            '/login',
+                            (route) => false,
                           );
-                        } catch (e) {
-                          print('Failed to create profile: $e');
                         }
-                      }
-                    },
-                    child: const Text('Create Profile'),
-                  ),
-                ],
+                      },
+                      child: const Text('Go to Login'),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         }
 
-        final data = snapshot.data!.data() as Map<String, dynamic>;
-        print('User data retrieved: ${data['uid']}, role: ${data['role']}');
+        final data = snapshot.data!.data()!;
+        final role = _normalizeRole(data['role']);
+        final providerStatus = _normalizeProviderStatus(data['providerStatus']);
 
-        final role = data['role'] as String? ?? 'customer';
-        final providerStatus = data['providerStatus'] as String?;
-
-        print('Routing based on role: $role, providerStatus: $providerStatus');
-
-        if (role == 'provider' && providerStatus != 'approved') {
-          print('Provider not approved, showing customer dashboard');
-          return const CustomerDashboard();
+        if (role == 'admin') return const AdminDashboard();
+        if (role == 'provider' && providerStatus == 'approved') {
+          return const ProviderDashboard();
         }
-
-        switch (role) {
-          case 'admin':
-            print('Routing to admin dashboard');
-            return const AdminDashboard();
-          case 'provider':
-            print('Routing to provider dashboard');
-            return const ProviderDashboard();
-          default:
-            print('Routing to customer dashboard');
-            return const CustomerDashboard();
-        }
+        if (role == 'provider') return const CustomerDashboard();
+        if (providerStatus == 'approved') return const ProviderDashboard();
+        return const CustomerDashboard();
       },
     );
   }
-}
-
-@override
-Widget build(BuildContext context) {
-  return StreamBuilder<DocumentSnapshot>(
-    stream: FirestoreService().getUserStream(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
-      }
-
-      if (snapshot.hasError) {
-        return Scaffold(body: Center(child: Text('Error: ${snapshot.error}')));
-      }
-
-      if (!snapshot.hasData || !snapshot.data!.exists) {
-        // Should not happen if signup is correct
-        FirebaseAuth.instance.signOut();
-        return const Scaffold(
-          body: Center(child: Text('Session expired. Please login again.')),
-        );
-      }
-
-      final data = snapshot.data!.data() as Map<String, dynamic>;
-      final role = data['role'] as String? ?? 'customer';
-      final providerStatus = data['providerStatus'] as String?;
-
-      if (role == 'provider' && providerStatus != 'approved') {
-        return const CustomerDashboard(); // Pending or rejected
-      }
-
-      return switch (role) {
-        'admin' => const AdminDashboard(),
-        'provider' => const ProviderDashboard(),
-        _ => const CustomerDashboard(),
-      };
-    },
-  );
 }

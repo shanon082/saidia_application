@@ -156,6 +156,100 @@ class FirestoreService {
         .snapshots();
   }
 
+  Stream<QuerySnapshot<Map<String, dynamic>>> getAllBookings() {
+    return _firestore
+        .collection('bookings')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> getAllPayments() {
+    return _firestore
+        .collection('payments')
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  Future<void> updateBookingStatusAsAdmin({
+    required String bookingId,
+    required String status,
+    String? adminNote,
+  }) async {
+    if (!await isUserAdmin()) {
+      throw Exception('Unauthorized: Only admins can update booking status');
+    }
+
+    await _firestore.collection('bookings').doc(bookingId).update({
+      'status': status.trim().toLowerCase(),
+      'adminNote': adminNote,
+      'adminUpdatedBy': currentUid,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<Map<String, dynamic>> getAdminReportSummary() async {
+    final bookingsSnapshot = await _firestore.collection('bookings').get();
+    final paymentsSnapshot = await _firestore.collection('payments').get();
+    final usersSnapshot = await _firestore.collection('users').get();
+
+    var totalRevenue = 0.0;
+    var completedPayments = 0;
+    var pendingPayments = 0;
+    var completedBookings = 0;
+    var pendingBookings = 0;
+
+    for (final doc in paymentsSnapshot.docs) {
+      final data = doc.data();
+      final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+      final status = (data['status'] ?? '').toString().toLowerCase();
+      totalRevenue += amount;
+      if (status == 'completed' || status == 'success') {
+        completedPayments++;
+      } else if (status == 'pending') {
+        pendingPayments++;
+      }
+    }
+
+    for (final doc in bookingsSnapshot.docs) {
+      final data = doc.data();
+      final status = (data['status'] ?? '').toString().toLowerCase();
+      if (status == 'completed' || status == 'confirmed') {
+        completedBookings++;
+      } else if (status == 'pending') {
+        pendingBookings++;
+      }
+    }
+
+    return {
+      'totalRevenue': totalRevenue,
+      'totalPayments': paymentsSnapshot.docs.length,
+      'completedPayments': completedPayments,
+      'pendingPayments': pendingPayments,
+      'totalBookings': bookingsSnapshot.docs.length,
+      'completedBookings': completedBookings,
+      'pendingBookings': pendingBookings,
+      'totalUsers': usersSnapshot.docs.length,
+    };
+  }
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> getAppSettingsStream() {
+    return _firestore.collection('app_settings').doc('general').snapshots();
+  }
+
+  Future<void> updateAppSettings({
+    required Map<String, dynamic> values,
+  }) async {
+    if (!await isUserAdmin()) {
+      throw Exception('Unauthorized: Only admins can update app settings');
+    }
+
+    await _firestore.collection('app_settings').doc('general').set({
+      ...values,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedBy': currentUid,
+    }, SetOptions(merge: true));
+  }
+
   Future<void> updateUserRole(String userId, String newRole) async {
     if (!await isUserAdmin()) {
       throw Exception('Unauthorized: Only admins can update user roles');

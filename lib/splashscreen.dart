@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:saidia_app/WelcomePage.dart';
+import 'package:saidia_app/screens/homepage.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -14,13 +14,6 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
-
-  String _normalizeRole(dynamic rawRole) {
-    final role = rawRole?.toString().trim().toLowerCase() ?? '';
-    if (role.contains('admin')) return 'admin';
-    if (role.contains('provider')) return 'provider';
-    return 'customer';
-  }
 
   @override
   void initState() {
@@ -56,64 +49,14 @@ class _SplashScreenState extends State<SplashScreen>
           );
         }
       } else {
-        await _navigateBasedOnUserRole(currentUser);
+        if (mounted) {
+          Navigator.of(
+            context,
+          ).pushReplacement(MaterialPageRoute(builder: (_) => const HomePage()));
+        }
       }
     } catch (e) {
       print('Error in splash screen navigation: $e');
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const WelcomePage()),
-        );
-      }
-    }
-  }
-
-  Future<void> _navigateBasedOnUserRole(User user) async {
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      if (!userDoc.exists) {
-        await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const WelcomePage()),
-          );
-        }
-        return;
-      }
-
-      final userData = userDoc.data()!;
-      final role = _normalizeRole(userData['role']);
-      final providerStatus = userData['providerStatus']
-          ?.toString()
-          .trim()
-          .toLowerCase();
-
-      if (mounted) {
-        switch (role) {
-          case 'admin':
-            Navigator.of(context).pushReplacementNamed('/admin-dashboard');
-            break;
-          case 'provider':
-            if (providerStatus == 'approved') {
-              Navigator.of(context).pushReplacementNamed('/provider-dashboard');
-            } else {
-              Navigator.of(context).pushReplacementNamed('/customer-dashboard');
-            }
-            break;
-          default:
-            if (providerStatus == 'approved') {
-              Navigator.of(context).pushReplacementNamed('/provider-dashboard');
-              break;
-            }
-            Navigator.of(context).pushReplacementNamed('/customer-dashboard');
-        }
-      }
-    } catch (e) {
-      print('Error navigating based on role: $e');
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const WelcomePage()),
