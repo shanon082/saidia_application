@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/services/firestore_services.dart';
@@ -252,7 +251,77 @@ class BookingHistoryPage extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (canReview)
+                        if (statusLower == 'confirmed')
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Confirm Completion?'),
+                                          content: const Text('Are you sure the provider has completed this job? Your wallet will be deducted.'),
+                                          actions: [
+                                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes')),
+                                          ],
+                                        ),
+                                      ) ?? false;
+
+                                      if (confirm && context.mounted) {
+                                        try {
+                                          await _service.confirmTaskCompleted(bookingId);
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment sent. Task completed.')));
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                        }
+                                      }
+                                    },
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                                    child: const Text('Complete task'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () async {
+                                      final reason = await showDialog<String>(
+                                        context: context,
+                                        builder: (ctx) {
+                                          final ctrl = TextEditingController();
+                                          return AlertDialog(
+                                            title: const Text('Report Issue'),
+                                            content: TextField(
+                                              controller: ctrl,
+                                              decoration: const InputDecoration(hintText: 'Reason for non-completion'),
+                                            ),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel')),
+                                              ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('Submit')),
+                                            ],
+                                          );
+                                        },
+                                      );
+
+                                      if (reason != null && reason.trim().isNotEmpty && context.mounted) {
+                                        try {
+                                          await _service.reportTaskDispute(bookingId, reason);
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dispute reported to Admin.')));
+                                        } catch (e) {
+                                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                        }
+                                      }
+                                    },
+                                    child: const Text('Report issue', style: TextStyle(color: Colors.red)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (statusLower == 'completed' && canReview)
                           Padding(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,

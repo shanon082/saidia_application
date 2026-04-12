@@ -1,7 +1,8 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:saidia_app/services/firestore_services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:intl/intl.dart';
 
 class ChatPage extends StatefulWidget {
@@ -17,18 +18,34 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   final _service = FirestoreService();
   final _messageController = TextEditingController();
-  final _currentUser = FirebaseAuth.instance.currentUser;
+  final _currentUser = FirestoreService.instance.currentUser;
   final ScrollController _scrollController = ScrollController();
+  String? _fetchedName;
 
   @override
   void initState() {
     super.initState();
+    _fetchUserName();
     // Auto-scroll to bottom when messages load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
     });
+  }
+
+  Future<void> _fetchUserName() async {
+    if (widget.providerName != null && widget.providerName!.isNotEmpty) {
+      _fetchedName = widget.providerName;
+      setState((){});
+      return;
+    }
+    try {
+      final res = await Supabase.instance.client.from('users').select('name').eq('id', widget.providerId).maybeSingle();
+      if (res != null) {
+        setState(() => _fetchedName = res['name']);
+      }
+    } catch (_) {}
   }
 
   void _sendMessage() {
@@ -73,7 +90,7 @@ class _ChatPageState extends State<ChatPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.providerName ?? 'Service Provider',
+              _fetchedName ?? widget.providerName ?? 'Service Provider',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             Text(
@@ -164,7 +181,7 @@ class _ChatPageState extends State<ChatPage> {
                   padding: EdgeInsets.all(16),
                   itemBuilder: (context, index) {
                     final msgData = messages[index].data() as Map<String, dynamic>;
-                    final isMe = msgData['senderId'] == _currentUser?.uid;
+                    final isMe = msgData['senderId'] == _currentUser?.id;
                     final timestamp = msgData['timestamp'] as Timestamp?;
                     final messageText = msgData['message'] ?? '';
 

@@ -1,4 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/screens/customers/chatPage.dart';
@@ -62,21 +63,24 @@ class NotificationPage extends StatelessWidget {
 
   Future<String?> _resolveProviderName(String providerId) async {
     try {
-      final appDoc = await FirebaseFirestore.instance
-          .collection('provider_applications')
-          .doc(providerId)
-          .get();
-      final appData = appDoc.data();
-      final specialization = appData?['specialization']?.toString();
+      final appDoc = await Supabase.instance.client
+          .from('provider_applications')
+          .select()
+          .eq('userId', providerId)
+          .maybeSingle();
+      
+      final specialization = appDoc?['specialization']?.toString();
       if (specialization != null && specialization.trim().isNotEmpty) {
         return specialization.trim();
       }
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(providerId)
-          .get();
-      final userName = userDoc.data()?['name']?.toString();
+      final userDoc = await Supabase.instance.client
+          .from('users')
+          .select()
+          .eq('id', providerId)
+          .maybeSingle();
+      
+      final userName = userDoc?['name']?.toString();
       if (userName != null && userName.trim().isNotEmpty) {
         return userName.trim();
       }

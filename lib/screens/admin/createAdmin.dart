@@ -1,6 +1,7 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+
 import 'package:saidia_app/auth/loginPage.dart';
 
 class CreateAdminPage extends StatefulWidget {
@@ -12,8 +13,8 @@ class CreateAdminPage extends StatefulWidget {
 
 class _CreateAdminPageState extends State<CreateAdminPage> {
   final _formKey = GlobalKey<FormState>();
-  final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
+  final _auth = Supabase.instance.client.auth;
+  final _supabase = Supabase.instance.client;
   
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -41,41 +42,38 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
       final phone = _phoneController.text.trim();
       
       // Check if email already exists
-      final users = await _firestore
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
+      final users = await _supabase
+          .from('users')
+          .select()
+          .eq('email', email)
+          .limit(1);
       
-      if (users.docs.isNotEmpty) {
+      if (users.isNotEmpty) {
         throw 'Email is already registered';
       }
       
       // Create auth user
       print('Creating auth user...');
-      final authResult = await _auth.createUserWithEmailAndPassword(
+      final authResult = await _auth.signUp(
         email: email,
         password: password,
       );
       
       final user = authResult.user!;
-      print('Auth user created. UID: ${user.uid}');
+      print('Auth user created. ID: ${user.id}');
       
-      // Create admin profile in Firestore
-      print('Creating Firestore document...');
-      await _firestore.collection('users').doc(user.uid).set({
-        'uid': user.uid,
+      // Create admin profile in Supabase
+      print('Creating Supabase document...');
+      await _supabase.from('users').insert({
+        'id': user.id,
         'name': name,
         'email': email,
         'phone': phone,
         'role': 'admin',
         'providerStatus': null,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
       });
-      
-      // Update user display name
-      await user.updateDisplayName(name);
       
       print('Admin account created successfully!');
       
@@ -97,21 +95,17 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
         );
       }
       
-    } on FirebaseAuthException catch (e) {
-      print('FirebaseAuthException: ${e.code} - ${e.message}');
+    } on AuthException catch (e) {
+      print('AuthException: ${e.message}');
       String errorMessage = 'Failed to create admin account';
-      switch (e.code) {
-        case 'email-already-in-use':
-          errorMessage = 'Email is already in use';
-          break;
-        case 'weak-password':
-          errorMessage = 'Password is too weak';
-          break;
-        case 'invalid-email':
-          errorMessage = 'Invalid email address';
-          break;
-        default:
-          errorMessage = e.message ?? errorMessage;
+      if (e.message.contains('already in use')) {
+        errorMessage = 'Email is already in use';
+      } else if (e.message.contains('weak') || e.message.contains('password')) {
+        errorMessage = 'Password is too weak';
+      } else if (e.message.contains('Invalid email')) {
+        errorMessage = 'Invalid email address';
+      } else {
+        errorMessage = e.message;
       }
       setState(() => _errorMessage = errorMessage);
     } catch (e, stackTrace) {

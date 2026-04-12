@@ -1,4 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/services/firestore_services.dart';
@@ -22,6 +23,27 @@ class ProviderChatPage extends StatefulWidget {
 class _ProviderChatPageState extends State<ProviderChatPage> {
   final FirestoreService _service = FirestoreService();
   final TextEditingController _messageController = TextEditingController();
+  String? _fetchedName;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserName();
+  }
+
+  Future<void> _fetchUserName() async {
+    if (widget.otherUserName != null && widget.otherUserName!.isNotEmpty) {
+      _fetchedName = widget.otherUserName;
+      setState((){});
+      return;
+    }
+    try {
+      final res = await Supabase.instance.client.from('users').select('name').eq('id', widget.otherUserId).maybeSingle();
+      if (res != null) {
+        setState(() => _fetchedName = res['name']);
+      }
+    } catch (_) {}
+  }
 
   String _formatTime(Timestamp? ts) {
     if (ts == null) return '';
@@ -45,7 +67,7 @@ class _ProviderChatPageState extends State<ProviderChatPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.otherUserName ?? widget.otherUserId),
+        title: Text(_fetchedName ?? widget.otherUserName ?? widget.otherUserId),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
       ),

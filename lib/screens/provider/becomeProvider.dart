@@ -1,6 +1,7 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 
-import 'package:firebase_storage/firebase_storage.dart';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:saidia_app/services/firestore_services.dart';
@@ -117,11 +118,23 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
     required File file,
     required String folder,
   }) async {
-    final path =
-        '$folder/${DateTime.now().millisecondsSinceEpoch}_${file.path.split('\\').last}';
-    final ref = FirebaseStorage.instance.ref().child(path);
-    await ref.putFile(file);
-    return ref.getDownloadURL();
+    try {
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+      final path = '$folder/$fileName';
+      final bytes = await file.readAsBytes();
+      
+      await Supabase.instance.client.storage
+          .from('provider-documents')
+          .uploadBinary(path, bytes);
+      
+      final url = Supabase.instance.client.storage
+          .from('provider-documents')
+          .getPublicUrl(path);
+      return url;
+    } catch (e) {
+      print('Error uploading image: $e');
+      rethrow;
+    }
   }
 
   Future<List<String>> _uploadBusinessImages() async {

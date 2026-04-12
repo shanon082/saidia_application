@@ -1,14 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 
 class NotificationService {
   NotificationService._internal();
   static final NotificationService instance = NotificationService._internal();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   bool _initialized = false;
 
@@ -16,66 +13,84 @@ class NotificationService {
     if (_initialized) return;
 
     try {
-      await _messaging.requestPermission(alert: true, badge: true, sound: true);
-      await _messaging.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-
-      await _saveToken();
-      FirebaseAuth.instance.authStateChanges().listen((user) {
-        if (user != null) {
-          _saveToken();
+      // Initialize with Supabase auth state changes
+      _supabase.auth.onAuthStateChange.listen((data) {
+        if (data.session?.user != null) {
+          _initializeUserNotifications(data.session!.user!.id);
         }
       });
 
-      _messaging.onTokenRefresh.listen((_) {
-        _saveToken();
-      });
-
-      FirebaseMessaging.onMessage.listen((message) async {
-        final uid = FirebaseAuth.instance.currentUser?.uid;
-        if (uid == null) return;
-
-        final title =
-            message.notification?.title ?? message.data['title']?.toString();
-        final body =
-            message.notification?.body ?? message.data['body']?.toString();
-        if (title == null || body == null) return;
-
-        await _firestore.collection('notifications').add({
-          'userId': uid,
-          'title': title,
-          'message': body,
-          'type': message.data['type']?.toString() ?? 'system',
-          'isRead': false,
-          'data': message.data,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      });
-    } on FirebaseException catch (e) {
-      // Keep app startup healthy on web dev if service worker isn't ready yet.
-      if (!kIsWeb || e.code != 'failed-service-worker-registration') {
-        rethrow;
-      }
+      _initialized = true;
+    } catch (e) {
+      // Log error but don't crash app startup
+      print('Notification service initialization error: $e');
     }
-
-    _initialized = true;
   }
 
-  Future<void> _saveToken() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+  Future<void> _initializeUserNotifications(String userId) async {
+    // When user signs in, set up realtime listener for their notifications
+    // This will be used by other parts of the app
+  }
 
-    final token = await _messaging.getToken();
-    if (token == null || token.isEmpty) return;
+  /// Add a new notification to the database
+  Future<void> addNotification({
+    required String userId,
+    required String title,
+    required String message,
+    String type = 'system',
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      await _supabase.from('notifications').insert({
+        'userId': userId,
+        'title': title,
+        'message': message,
+        'type': type,
+        'isRead': false,
+        'data': data ?? {},
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      print('Error adding notification: $e');
+    }
+  }
 
-    await _firestore.collection('users').doc(uid).set({
-      'fcmTokens': FieldValue.arrayUnion([token]),
-      'fcmUpdatedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  /// Get stream of unread notifications for current user
+  Stream<List<Map<String, dynamic>>> getUnreadNotificationsStream() {
+    final uid = FirestoreService.instance.currentUid;
+    if (uid == null) return const Stream.empty();
+
+    return _supabase
+        .from('notifications')
+        .select()
+        .eq('userId', uid)
+        .eq('isRead', false)
+        .order('createdAt', ascending: false)
+        .asStream();
+  }
+
+  /// Mark notification as read
+  Future<void> markAsRead(String notificationId) async {
+    try {
+      await _supabase
+          .from('notifications')
+          .update({'isRead': true})
+          .eq('id', notificationId);
+    } catch (e) {
+      print('Error marking notification as read: $e');
+    }
+  }
+
+  /// Delete notification
+  Future<void> deleteNotification(String notificationId) async {
+    try {
+      await _supabase
+          .from('notifications')
+          .delete()
+          .eq('id', notificationId);
+    } catch (e) {
+      print('Error deleting notification: $e');
+    }
   }
 }

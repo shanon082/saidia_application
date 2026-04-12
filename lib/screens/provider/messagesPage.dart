@@ -1,4 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/screens/provider/providerChatPage.dart';
@@ -29,7 +30,7 @@ class _ConversationSummary {
 
 class _MessagesPageState extends State<MessagesPage> {
   final FirestoreService _service = FirestoreService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _supabase = Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
 
   String _chatIdFor(String a, String b) {
@@ -59,17 +60,16 @@ class _MessagesPageState extends State<MessagesPage> {
         orElse: () => chatId,
       );
 
-      final messageSnap = await _firestore
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .orderBy('timestamp', descending: true)
-          .limit(1)
-          .get();
+      final messageSnap = await _supabase
+          .from('messages')
+          .select()
+          .eq('chatId', chatId)
+          .order('timestamp', ascending: false)
+          .limit(1);
 
-      if (messageSnap.docs.isEmpty) return null;
+      if (messageSnap.isEmpty) return null;
 
-      final msg = messageSnap.docs.first.data();
+      final msg = messageSnap.first;
       final chatMeta = chatDocMap[chatId];
       final participants =
           (chatMeta?['participants'] as List?)?.cast<String>() ?? [];
@@ -77,8 +77,8 @@ class _MessagesPageState extends State<MessagesPage> {
         (id) => id != uid,
         orElse: () => fallbackOther,
       );
-      final userSnap = await _firestore.collection('users').doc(other).get();
-      final userNameRaw = userSnap.data()?['name']?.toString().trim();
+      final userSnap = await _supabase.from('users').select().eq('id', other).maybeSingle();
+      final userNameRaw = userSnap?['name']?.toString().trim();
       final otherName = (userNameRaw != null && userNameRaw.isNotEmpty)
           ? userNameRaw
           : other;

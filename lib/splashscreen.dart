@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:saidia_app/WelcomePage.dart';
 import 'package:saidia_app/screens/homepage.dart';
 
@@ -40,7 +40,7 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(seconds: 3));
 
     try {
-      final currentUser = FirebaseAuth.instance.currentUser;
+      final currentUser = Supabase.instance.client.auth.currentUser;
 
       if (currentUser == null) {
         if (mounted) {

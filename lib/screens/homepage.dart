@@ -1,5 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+
 import 'package:flutter/material.dart';
 import 'package:saidia_app/screens/admin/adminDashboard.dart';
 import 'package:saidia_app/screens/customers/customerDashboard.dart';
@@ -48,7 +49,7 @@ class HomePage extends StatelessWidget {
                     const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: () async {
-                        await FirebaseAuth.instance.signOut();
+                        await Supabase.instance.client.auth.signOut();
                         if (context.mounted) {
                           Navigator.pushNamedAndRemoveUntil(
                             context,
@@ -81,7 +82,7 @@ class HomePage extends StatelessWidget {
                     const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: () async {
-                        await FirebaseAuth.instance.signOut();
+                        await Supabase.instance.client.auth.signOut();
                         if (context.mounted) {
                           Navigator.pushNamedAndRemoveUntil(
                             context,

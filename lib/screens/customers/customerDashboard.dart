@@ -1,9 +1,10 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:saidia_app/screens/customers/profilepage.dart';
 import 'package:saidia_app/screens/customers/servicesList.dart';
 import 'package:saidia_app/screens/provider/becomeProvider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+
 import 'package:saidia_app/auth/loginPage.dart';
 import 'package:saidia_app/screens/customers/notificationpage.dart';
 import 'package:saidia_app/screens/customers/bookingHistoryPage.dart';
@@ -20,9 +21,9 @@ class CustomerDashboard extends StatefulWidget {
 }
 
 class _CustomerDashboardState extends State<CustomerDashboard> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final TextEditingController _searchController = TextEditingController();
   FirestoreService get _service => FirestoreService();
+  SupabaseClient get _supabase => Supabase.instance.client;
 
   final List<Map<String, dynamic>> _categories = [
     {'name': 'Plumbing', 'icon': Icons.plumbing, 'color': Colors.blue},
@@ -49,7 +50,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    final User? user = _auth.currentUser;
+    final User? user = _supabase.auth.currentUser;
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -103,7 +104,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'SaidiA',
+                    'Saidia',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -210,16 +211,13 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   }
 
   Widget _buildWelcomeSection(User? user) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(user?.uid)
-          .snapshots(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _supabase.from('users').stream(primaryKey: ['id']).eq('id', user?.id ?? ''),
       builder: (context, snapshot) {
         String userName = 'Customer';
-        if (snapshot.hasData && snapshot.data!.exists) {
-          final data = snapshot.data!.data() as Map<String, dynamic>?;
-          userName = data?['name']?.split(' ').first ?? 'Customer';
+        if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+          final data = snapshot.data!.first;
+          userName = data['name']?.split(' ').first ?? 'Customer';
         }
 
         return Padding(
@@ -395,19 +393,16 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       width: MediaQuery.of(context).size.width * 0.8,
       child: Column(
         children: [
-          StreamBuilder<DocumentSnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(user?.uid)
-                .snapshots(),
+          StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _supabase.from('users').stream(primaryKey: ['id']).eq('id', user?.id ?? ''),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return _buildDrawerHeader('Loading...', 'Loading...', '');
               }
 
-              final data = snapshot.data!.data() as Map<String, dynamic>?;
-              final String name = data?['name'] ?? 'User';
-              final String phone = data?['phone'] ?? 'No phone';
+              final data = snapshot.data!.first;
+              final String name = data['name'] ?? 'User';
+              final String phone = data['phone'] ?? 'No phone';
               final String email = user?.email ?? 'No email';
 
               return _buildDrawerHeader(name, email, phone);
@@ -609,7 +604,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   Future<void> _logout(BuildContext context) async {
     try {
-      await FirebaseAuth.instance.signOut();
+      await Supabase.instance.client.auth.signOut();
       if (context.mounted) {
         Navigator.pushAndRemoveUntil(
           context,

@@ -1,7 +1,10 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+
 import 'package:saidia_app/screens/customers/notificationpage.dart';
+import 'package:saidia_app/screens/customers/editProfilePage.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -11,11 +14,14 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _auth = Supabase.instance.client.auth;
+  final _supabase = Supabase.instance.client;
   
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
+  int _savedCount = 0;
+  int _bookingsCount = 0;
+  double _rating = 0.0;
 
   @override
   void initState() {
@@ -27,10 +33,25 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final user = _auth.currentUser;
       if (user != null) {
-        final doc = await _firestore.collection('users').doc(user.uid).get();
-        if (doc.exists) {
+        final doc = await _supabase.from('users').select().eq('id', user.id).maybeSingle();
+        if (doc != null) {
+          final userId = user.id;
+          
+          final savedSnap = await _supabase
+              .from('saved_services')
+              .select()
+              .eq('userId', userId);
+          
+          final bookingsSnap = await _supabase
+              .from('bookings')
+              .select()
+              .eq('customerId', userId);
+          
           setState(() {
-            _userData = doc.data();
+            _userData = doc;
+            _savedCount = savedSnap.length;
+            _bookingsCount = bookingsSnap.length;
+            _rating = (doc['rating'] as num?)?.toDouble() ?? 0.0;
             _isLoading = false;
           });
         }
@@ -88,11 +109,16 @@ class _ProfilePageState extends State<ProfilePage> {
                         CircleAvatar(
                           radius: 60,
                           backgroundColor: Colors.white.withOpacity(0.2),
-                          child: Icon(
-                            Icons.person,
-                            size: 70,
-                            color: Colors.white,
-                          ),
+                          backgroundImage: _userData?['profileImageUrl'] != null
+                              ? NetworkImage(_userData!['profileImageUrl'])
+                              : null,
+                          child: _userData?['profileImageUrl'] == null
+                              ? Icon(
+                                  Icons.person,
+                                  size: 70,
+                                  color: Colors.white,
+                                )
+                              : null,
                         ),
                         SizedBox(height: 20),
                         Text(
@@ -131,7 +157,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         Expanded(
                           child: _buildStatCard(
                             icon: Icons.bookmark,
-                            value: '12',
+                            value: _savedCount.toString(),
                             label: 'Saved',
                             color: Colors.blue,
                           ),
@@ -140,7 +166,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         Expanded(
                           child: _buildStatCard(
                             icon: Icons.history,
-                            value: '24',
+                            value: _bookingsCount.toString(),
                             label: 'Bookings',
                             color: Colors.green,
                           ),
@@ -149,7 +175,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         Expanded(
                           child: _buildStatCard(
                             icon: Icons.star,
-                            value: '4.8',
+                            value: _rating > 0 ? _rating.toStringAsFixed(1) : 'N/A',
                             label: 'Rating',
                             color: Colors.amber,
                           ),
@@ -166,7 +192,12 @@ class _ProfilePageState extends State<ProfilePage> {
                         _buildMenuItem(
                           icon: Icons.person_outline,
                           title: 'Personal Information',
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => EditProfilePage()),
+                            ).then((_) => _loadUserData());
+                          },
                         ),
                         _buildMenuItem(
                           icon: Icons.lock_outline,

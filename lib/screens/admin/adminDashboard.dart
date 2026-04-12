@@ -1,5 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/auth/loginPage.dart';
@@ -16,7 +17,7 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   final FirestoreService _firestore = FirestoreService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final _auth = Supabase.instance.client.auth;
 
   _AdminTab _tab = _AdminTab.dashboard;
   int _refreshKey = 0;

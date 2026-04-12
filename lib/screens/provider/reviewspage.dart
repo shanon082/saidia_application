@@ -1,5 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/services/firestore_services.dart';
@@ -7,8 +8,8 @@ import 'package:saidia_app/services/firestore_services.dart';
 class ReviewsPage extends StatelessWidget {
   ReviewsPage({super.key});
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _auth = Supabase.instance.client.auth;
+  final _supabase = Supabase.instance.client;
   final FirestoreService _service = FirestoreService();
 
   @override
@@ -87,18 +88,13 @@ class ReviewsPage extends StatelessWidget {
                     final created = (data['timestamp'] as Timestamp?)?.toDate();
                     final rating = (data['rating'] as num?)?.toDouble() ?? 0;
 
-                    return FutureBuilder<
-                      DocumentSnapshot<Map<String, dynamic>>
-                    >(
+                    return FutureBuilder<Map<String, dynamic>?>(
                       future: customerId == null
                           ? null
-                          : _firestore
-                                .collection('users')
-                                .doc(customerId)
-                                .get(),
+                          : _supabase.from('users').select().eq('id', customerId).maybeSingle(),
                       builder: (context, userSnap) {
                         final customerName =
-                            userSnap.data?.data()?['name']?.toString() ??
+                            userSnap.data?['name']?.toString() ??
                             'Customer';
                         return ListTile(
                           leading: CircleAvatar(

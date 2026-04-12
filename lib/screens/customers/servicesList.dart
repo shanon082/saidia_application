@@ -1,5 +1,6 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:saidia_app/screens/customers/serviceDetails.dart';
 import 'package:saidia_app/screens/customers/notificationpage.dart';
 
@@ -186,16 +187,18 @@ class _ServicesListPageState extends State<ServicesListPage> {
   }
 
   Widget _buildServicesList() {
-    Query query = FirebaseFirestore.instance
-        .collection('provider_applications')
-        .where('status', isEqualTo: 'approved');
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: () {
+        var query = Supabase.instance.client
+            .from('provider_applications')
+            .select()
+            .eq('status', 'approved');
 
-    if (widget.categoryFilter != null) {
-      query = query.where('serviceCategory', isEqualTo: widget.categoryFilter);
-    }
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: query.snapshots(),
+        if (widget.categoryFilter != null) {
+          query = query.eq('serviceCategory', widget.categoryFilter!);
+        }
+        return query.asStream();
+      }(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
@@ -219,7 +222,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
             ),
           );
         }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -242,12 +245,11 @@ class _ServicesListPageState extends State<ServicesListPage> {
           );
         }
 
-        List<QueryDocumentSnapshot> providers = snapshot.data!.docs;
+        List<Map<String, dynamic>> providers = snapshot.data!;
 
         // Apply search filter
         if (_searchQuery.isNotEmpty) {
-          providers = providers.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+          providers = providers.where((data) {
             final specialization = (data['specialization'] ?? '').toLowerCase();
             final description = (data['description'] ?? '').toLowerCase();
             final category = (data['serviceCategory'] ?? '').toLowerCase();
@@ -260,16 +262,13 @@ class _ServicesListPageState extends State<ServicesListPage> {
 
         // Apply sorting
         providers.sort((a, b) {
-          final aData = a.data() as Map<String, dynamic>;
-          final bData = b.data() as Map<String, dynamic>;
-          
           if (_sortBy == 'rating') {
-            final aRating = _toDouble(aData['rating']);
-            final bRating = _toDouble(bData['rating']);
+            final aRating = _toDouble(a['rating']);
+            final bRating = _toDouble(b['rating']);
             return bRating.compareTo(aRating);
           } else {
-            final aPrice = _toDouble(aData['hourlyRate']);
-            final bPrice = _toDouble(bData['hourlyRate']);
+            final aPrice = _toDouble(a['hourlyRate']);
+            final bPrice = _toDouble(b['hourlyRate']);
             return aPrice.compareTo(bPrice);
           }
         });
@@ -278,8 +277,8 @@ class _ServicesListPageState extends State<ServicesListPage> {
           padding: EdgeInsets.all(16),
           itemCount: providers.length,
           itemBuilder: (context, index) {
-            final data = providers[index].data() as Map<String, dynamic>;
-            final providerId = providers[index].id;
+            final data = providers[index];
+            final providerId = data['userId'];
             final businessImages = (data['businessImages'] as List?)?.cast<String>() ?? [];
             final profileImage = data['imageUrl'] ?? '';
             final rating = _toDouble(data['rating']);

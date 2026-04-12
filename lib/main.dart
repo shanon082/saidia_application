@@ -1,8 +1,7 @@
-import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:saidia_app/auth/loginPage.dart';
 import 'package:saidia_app/auth/signupPage.dart';
-import 'package:saidia_app/firebase_options.dart';
 import 'package:saidia_app/screens/admin/adminDashboard.dart';
 import 'package:saidia_app/screens/customers/customerDashboard.dart';
 import 'package:saidia_app/screens/provider/providerDashboard.dart';
@@ -11,7 +10,10 @@ import 'package:saidia_app/splashscreen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Supabase.initialize(
+    url: 'https://qgcaaikhgizzwcvozwbl.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnY2FhaWtoZ2l6endjdm96d2JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NDAxMjYsImV4cCI6MjA5MTMxNjEyNn0.IQ9N0j2KvEyZJJf25FjUHzE0QehTcuibSLhzRDoeKyE',
+  );
   await NotificationService.instance.initialize();
   runApp(const MyApp());
 }

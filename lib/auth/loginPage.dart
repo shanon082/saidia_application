@@ -1,6 +1,7 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
+
 import 'package:saidia_app/auth/signupPage.dart';
 import 'package:saidia_app/screens/homepage.dart';
 // import 'package:saidia_app/screens/admin/createAdmin.dart';
@@ -14,8 +15,8 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _auth = FirebaseAuth.instance;
-  final _firestore = FirebaseFirestore.instance;
+  final _auth = Supabase.instance.client.auth;
+  final _supabase = Supabase.instance.client;
 
   String _email = '';
   String _password = '';
@@ -40,18 +41,18 @@ class _LoginPageState extends State<LoginPage> {
     try {
       print('Attempting login with email: $_email');
 
-      final userCredential = await _auth.signInWithEmailAndPassword(
+      final userCredential = await _auth.signInWithPassword(
         email: _email.trim(),
         password: _password,
       );
 
       final user = userCredential.user!;
-      print('Auth successful. UID: ${user.uid}');
+      print('Auth successful. UID: ${user.id}');
 
-      // Check if user exists in Firestore
-      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      // Check if user exists in Supabase
+      final userDoc = await _supabase.from('users').select().eq('id', user.id).maybeSingle();
 
-      if (!userDoc.exists) {
+      if (userDoc == null) {
         await _auth.signOut();
         throw Exception(
           'Your user profile is missing. Contact admin to restore your account role.',
@@ -59,7 +60,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       // Get user data
-      final userData = userDoc.data()!;
+      final userData = userDoc;
       final role = _normalizeRole(userData['role']);
       final providerStatus = userData['providerStatus']
           ?.toString()
@@ -112,32 +113,23 @@ class _LoginPageState extends State<LoginPage> {
           ),
         );
       });
-    } on FirebaseAuthException catch (e) {
-      print('FirebaseAuthException: ${e.code} - ${e.message}');
+    } on AuthException catch (e) {
+      print('AuthException: ${e.message}');
 
       String errorMessage = 'Login failed';
 
-      switch (e.code) {
-        case 'user-not-found':
-          errorMessage = 'No account found with this email';
-          break;
-        case 'wrong-password':
-          errorMessage = 'Incorrect password';
-          break;
-        case 'user-disabled':
-          errorMessage = 'This account has been disabled';
-          break;
-        case 'invalid-email':
-          errorMessage = 'Invalid email address format';
-          break;
-        case 'too-many-requests':
-          errorMessage = 'Too many login attempts. Please try again later';
-          break;
-        case 'network-request-failed':
-          errorMessage = 'Network error. Please check your internet connection';
-          break;
-        default:
-          errorMessage = e.message ?? 'Login failed. Please try again';
+      if (e.message.contains('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password';
+      } else if (e.message.contains('User not found')) {
+        errorMessage = 'No account found with this email';
+      } else if (e.message.contains('disabled')) {
+        errorMessage = 'This account has been disabled';
+      } else if (e.message.contains('Invalid email')) {
+        errorMessage = 'Invalid email address format';
+      } else if (e.message.contains('too many')) {
+        errorMessage = 'Too many login attempts. Please try again later';
+      } else {
+        errorMessage = e.message;
       }
 
       _showErrorDialog(errorMessage);
@@ -194,7 +186,7 @@ class _LoginPageState extends State<LoginPage> {
     try {
       setState(() => _isLoading = true);
 
-      await _auth.sendPasswordResetEmail(email: _email.trim());
+      await _auth.resetPasswordForEmail(_email.trim());
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -203,20 +195,16 @@ class _LoginPageState extends State<LoginPage> {
           duration: Duration(seconds: 4),
         ),
       );
-    } on FirebaseAuthException catch (e) {
+    } on AuthException catch (e) {
       String errorMessage = 'Failed to send reset email';
-      switch (e.code) {
-        case 'user-not-found':
-          errorMessage = 'No account found with this email';
-          break;
-        case 'invalid-email':
-          errorMessage = 'Invalid email address';
-          break;
-        case 'too-many-requests':
-          errorMessage = 'Too many requests. Try again later';
-          break;
-        default:
-          errorMessage = e.message ?? errorMessage;
+      if (e.message.contains('User not found')) {
+        errorMessage = 'No account found with this email';
+      } else if (e.message.contains('Invalid email')) {
+        errorMessage = 'Invalid email address';
+      } else if (e.message.contains('too many')) {
+        errorMessage = 'Too many requests. Try again later';
+      } else {
+        errorMessage = e.message;
       }
 
       ScaffoldMessenger.of(context).showSnackBar(

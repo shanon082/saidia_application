@@ -1,6 +1,6 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:saidia_app/auth/loginPage.dart';
 import 'package:intl/intl.dart';
 import 'package:saidia_app/screens/provider/earningspage.dart';
@@ -22,55 +22,43 @@ class ProviderDashboard extends StatefulWidget {
 }
 
 class _ProviderDashboardState extends State<ProviderDashboard> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _auth = Supabase.instance.client.auth;
+  final _supabase = Supabase.instance.client;
   final FirestoreService _service = FirestoreService();
   int _selectedIndex = 0;
-  late Stream<DocumentSnapshot> _providerDataStream;
-  late Stream<QuerySnapshot> _bookingsStream;
-  late Stream<QuerySnapshot> _reviewsStream;
-  late Stream<QuerySnapshot> _messagesStream;
+  late Stream<DocumentSnapshot<Map<String, dynamic>>> _providerDataStream;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _bookingsStream;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _reviewsStream;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _messagesStream;
 
   @override
   void initState() {
     super.initState();
-    _providerDataStream = _getProviderDataStream();
-    _bookingsStream = _getBookingsStream();
-    _reviewsStream = _getReviewsStream();
-    _messagesStream = _getMessagesStream();
+    _providerDataStream = _service.getProviderApplicationStream();
+    _bookingsStream = _service.getProviderBookingsStream();
+    _reviewsStream = _service.getProviderReviewsStream();
+    _messagesStream = _service.getProviderChatsStream();
   }
 
-  Stream<DocumentSnapshot> _getProviderDataStream() {
-    return _firestore
-        .collection('provider_applications')
-        .doc(_auth.currentUser!.uid)
-        .snapshots();
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _getProviderDataStream() {
+    return _service.getProviderApplicationStream();
   }
 
-  Stream<QuerySnapshot> _getBookingsStream() {
-    return _firestore
-        .collection('bookings')
-        .where('providerId', isEqualTo: _auth.currentUser!.uid)
-        .snapshots();
+  Stream<QuerySnapshot<Map<String, dynamic>>> _getBookingsStream() {
+    return _service.getProviderBookingsStream();
   }
 
-  Stream<QuerySnapshot> _getReviewsStream() {
-    return _firestore
-        .collection('reviews')
-        .where('providerId', isEqualTo: _auth.currentUser!.uid)
-        .snapshots();
+  Stream<QuerySnapshot<Map<String, dynamic>>> _getReviewsStream() {
+    return _service.getProviderReviewsStream();
   }
 
-  Stream<QuerySnapshot> _getMessagesStream() {
-    return _firestore
-        .collection('chats')
-        .where('participants', arrayContains: _auth.currentUser!.uid)
-        .snapshots();
+  Stream<QuerySnapshot<Map<String, dynamic>>> _getMessagesStream() {
+    return _service.getProviderChatsStream();
   }
 
   Future<void> _logout(BuildContext context) async {
     try {
-      await FirebaseAuth.instance.signOut();
+      await Supabase.instance.client.auth.signOut();
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -1325,9 +1313,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                           ),
                         ),
                         child: Text(
-                          data['status'] == 'pending'
-                              ? 'Confirm'
-                              : 'Complete',
+                          data['status'] == 'pending' ? 'Confirm' : 'Complete',
                           style: TextStyle(
                             color: data['status'] == 'pending'
                                 ? Colors.green
@@ -1836,9 +1822,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 ? 'Booking marked as completed'
                 : 'Booking $status successfully',
           ),
-          backgroundColor: status == 'cancelled'
-              ? Colors.red
-              : Colors.green,
+          backgroundColor: status == 'cancelled' ? Colors.red : Colors.green,
         ),
       );
     } catch (e) {

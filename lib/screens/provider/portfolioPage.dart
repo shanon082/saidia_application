@@ -1,7 +1,8 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:saidia_app/services/firestore_services.dart';
@@ -29,11 +30,18 @@ class _PortfolioPageState extends State<PortfolioPage> {
     setState(() => _uploading = true);
     try {
       final file = File(picked.path);
-      final ref = FirebaseStorage.instance.ref().child(
-        'provider_documents/business_images/${DateTime.now().millisecondsSinceEpoch}_${file.path.split('\\').last}',
-      );
-      await ref.putFile(file);
-      final url = await ref.getDownloadURL();
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
+      final path = 'provider_documents/business_images/$fileName';
+      final bytes = await file.readAsBytes();
+      
+      await Supabase.instance.client.storage
+          .from('provider-documents')
+          .uploadBinary(path, bytes);
+      
+      final url = Supabase.instance.client.storage
+          .from('provider-documents')
+          .getPublicUrl(path);
+      
       await _service.addProviderBusinessImage(url);
 
       if (mounted) {
