@@ -16,7 +16,7 @@ class NotificationService {
       // Initialize with Supabase auth state changes
       _supabase.auth.onAuthStateChange.listen((data) {
         if (data.session?.user != null) {
-          _initializeUserNotifications(data.session!.user!.id);
+          _initializeUserNotifications(data.session!.user.id);
         }
       });
 

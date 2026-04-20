@@ -1,13 +1,10 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-
-
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:saidia_app/auth/signupPage.dart';
 import 'package:saidia_app/screens/homepage.dart';
-// import 'package:saidia_app/screens/admin/createAdmin.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({Key? key}) : super(key: key);
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -30,43 +27,75 @@ class _LoginPageState extends State<LoginPage> {
     return 'customer';
   }
 
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
     _formKey.currentState!.save();
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
+    final email = _email.trim().toLowerCase();
 
     try {
-      print('Attempting login with email: $_email');
+      print('Attempting login with email: $email');
 
       final userCredential = await _auth.signInWithPassword(
-        email: _email.trim(),
+        email: email,
         password: _password,
       );
-
       final user = userCredential.user!;
       print('Auth successful. UID: ${user.id}');
 
-      // Check if user exists in Supabase
-      final userDoc = await _supabase.from('users').select().eq('id', user.id).maybeSingle();
+      Map<String, dynamic>? userDoc = await _supabase
+          .from('users')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (userDoc == null) {
+        final metadata = user.userMetadata ?? {};
+        final fallbackName = metadata['name']?.toString().trim().isNotEmpty ==
+                true
+            ? metadata['name'].toString().trim()
+            : ((user.email ?? 'User').toString().split('@').first);
+        final String? fallbackPhone =
+            metadata['phone']?.toString().trim().isNotEmpty == true
+                ? metadata['phone'].toString().trim()
+                : null;
+        final fallbackEmail = metadata['email']?.toString().trim().isNotEmpty ==
+                true
+            ? metadata['email'].toString().trim().toLowerCase()
+            : (user.email ?? email);
+
+        await _supabase.from('users').upsert({
+          'id': user.id,
+          'name': fallbackName,
+          'email': fallbackEmail,
+          'phone': fallbackPhone,
+          'role': 'customer',
+          'updatedAt': DateTime.now().toUtc().toIso8601String(),
+        });
+
+        userDoc = await _supabase
+            .from('users')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle();
+      }
 
       if (userDoc == null) {
         await _auth.signOut();
-        throw Exception(
-          'Your user profile is missing. Contact admin to restore your account role.',
-        );
+        throw Exception('Unable to initialize your user profile. Try again.');
       }
 
-      // Get user data
-      final userData = userDoc;
-      final role = _normalizeRole(userData['role']);
-      final providerStatus = userData['providerStatus']
+      final role = _normalizeRole(userDoc['role']);
+      final providerStatus = userDoc['providerStatus']
           ?.toString()
           .trim()
           .toLowerCase();
-      final name = userData['name']?.toString() ?? 'User';
+      final name = userDoc['name']?.toString() ?? 'User';
 
       print('User role: $role, Provider status: $providerStatus');
 
@@ -94,7 +123,6 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
 
-      // Route through HomePage so all role-based routing is resolved in one place.
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -103,8 +131,8 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
 
-      // Show welcome message
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Welcome back, $name!'),
@@ -117,17 +145,15 @@ class _LoginPageState extends State<LoginPage> {
       print('AuthException: ${e.message}');
 
       String errorMessage = 'Login failed';
+      final lower = e.message.toLowerCase();
 
-      if (e.message.contains('Invalid login credentials')) {
+      if (lower.contains('invalid login credentials')) {
         errorMessage = 'Invalid email or password';
-      } else if (e.message.contains('User not found')) {
-        errorMessage = 'No account found with this email';
-      } else if (e.message.contains('disabled')) {
-        errorMessage = 'This account has been disabled';
-      } else if (e.message.contains('Invalid email')) {
-        errorMessage = 'Invalid email address format';
-      } else if (e.message.contains('too many')) {
-        errorMessage = 'Too many login attempts. Please try again later';
+      } else if (lower.contains('email not confirmed')) {
+        errorMessage =
+            'Email not verified yet. Verify your code during signup, then login.';
+      } else if (lower.contains('too many')) {
+        errorMessage = 'Too many login attempts. Please try again later.';
       } else {
         errorMessage = e.message;
       }
@@ -136,17 +162,14 @@ class _LoginPageState extends State<LoginPage> {
     } catch (e, stackTrace) {
       print('Unexpected error: $e');
       print('Stack trace: $stackTrace');
-      _showErrorDialog('An unexpected error occurred. Please try again');
+      _showErrorDialog('An unexpected error occurred. Please try again.');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _showErrorDialog(String message) {
     if (!mounted) return;
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -163,7 +186,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _resetPassword() async {
-    if (_email.isEmpty) {
+    final input = _email.trim();
+    if (input.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter your email first'),
@@ -173,7 +197,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
-    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(_email)) {
+    if (!_isValidEmail(input)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid email address'),
@@ -185,9 +209,9 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       setState(() => _isLoading = true);
+      await _auth.resetPasswordForEmail(input.toLowerCase());
 
-      await _auth.resetPasswordForEmail(_email.trim());
-
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Password reset email sent. Check your inbox'),
@@ -197,20 +221,21 @@ class _LoginPageState extends State<LoginPage> {
       );
     } on AuthException catch (e) {
       String errorMessage = 'Failed to send reset email';
-      if (e.message.contains('User not found')) {
-        errorMessage = 'No account found with this email';
-      } else if (e.message.contains('Invalid email')) {
+      final lower = e.message.toLowerCase();
+      if (lower.contains('invalid email')) {
         errorMessage = 'Invalid email address';
-      } else if (e.message.contains('too many')) {
+      } else if (lower.contains('too many')) {
         errorMessage = 'Too many requests. Try again later';
       } else {
         errorMessage = e.message;
       }
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to send reset email: $e'),
@@ -218,7 +243,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -228,13 +253,6 @@ class _LoginPageState extends State<LoginPage> {
       MaterialPageRoute(builder: (_) => const SignUpPage()),
     );
   }
-
-  // void _navigateToAdminCreation() {
-  //   Navigator.push(
-  //     context,
-  //     MaterialPageRoute(builder: (_) => const CreateAdminPage()),
-  //   );
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -252,7 +270,6 @@ class _LoginPageState extends State<LoginPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 20),
-                    // Logo/Header Section
                     Column(
                       children: [
                         Container(
@@ -277,14 +294,9 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                     const SizedBox(height: 40),
-
-                    // Login Form
                     const Text(
                       'Login to Your Account',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                     const Text(
@@ -297,8 +309,6 @@ class _LoginPageState extends State<LoginPage> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
-
-                    // Email field
                     TextFormField(
                       decoration: InputDecoration(
                         labelText: 'Email Address',
@@ -338,12 +348,11 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       keyboardType: TextInputType.emailAddress,
                       validator: (v) {
-                        if (v == null || v.isEmpty) {
+                        if (v == null || v.trim().isEmpty) {
                           return 'Email is required';
                         }
-                        if (!RegExp(
-                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                        ).hasMatch(v)) {
+                        final value = v.trim();
+                        if (!_isValidEmail(value)) {
                           return 'Enter a valid email address';
                         }
                         return null;
@@ -352,8 +361,6 @@ class _LoginPageState extends State<LoginPage> {
                       onChanged: (v) => _email = v.trim(),
                     ),
                     const SizedBox(height: 15),
-
-                    // Password field
                     TextFormField(
                       decoration: InputDecoration(
                         labelText: 'Password',
@@ -398,17 +405,13 @@ class _LoginPageState extends State<LoginPage> {
                             color: Colors.grey.shade600,
                           ),
                           onPressed: () {
-                            setState(() {
-                              _obscurePassword = !_obscurePassword;
-                            });
+                            setState(() => _obscurePassword = !_obscurePassword);
                           },
                         ),
                       ),
                       obscureText: _obscurePassword,
                       validator: (v) {
-                        if (v == null || v.isEmpty) {
-                          return 'Password is required';
-                        }
+                        if (v == null || v.isEmpty) return 'Password is required';
                         if (v.length < 6) {
                           return 'Password must be at least 6 characters';
                         }
@@ -416,8 +419,6 @@ class _LoginPageState extends State<LoginPage> {
                       },
                       onSaved: (v) => _password = v!,
                     ),
-
-                    // Forgot password
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
@@ -429,14 +430,12 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // Login button
                     SizedBox(
                       height: 50,
                       child: ElevatedButton(
                         onPressed: _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(0xFF2575FC),
+                          backgroundColor: const Color(0xFF2575FC),
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -463,8 +462,6 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 24),
-
-                    // Divider
                     Row(
                       children: [
                         Expanded(
@@ -492,8 +489,6 @@ class _LoginPageState extends State<LoginPage> {
                       ],
                     ),
                     const SizedBox(height: 24),
-
-                    // Sign up button
                     SizedBox(
                       height: 50,
                       child: OutlinedButton(
@@ -514,16 +509,10 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 40),
-
-                    // Footer
                     Text(
                       'By continuing, you agree to our Terms of Service and Privacy Policy',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),

@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
-
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -30,15 +30,18 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
   final List<String> _serviceAreas = [];
   final List<String> _workingDays = [];
 
-  List<File>? _businessImages;
+  List<XFile>? _businessImages;
   final int _maxBusinessImages = 3;
 
-  File? _profileImage;
-  File? _idFrontImage;
-  File? _idBackImage;
-  File? _certificateImage;
+  XFile? _profileImage;
+  XFile? _idFrontImage;
+  XFile? _idBackImage;
+  XFile? _certificateImage;
 
   bool _isLoading = false;
+
+  String _vehicleType = '';
+  String _licensePlate = '';
 
   final List<String> _categories = [
     'Plumbing',
@@ -50,6 +53,7 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
     'Moving',
     'Repair',
     'Installation',
+    'Transportation',
     'Other',
   ];
 
@@ -64,23 +68,32 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
   ];
 
   final List<String> _possibleAreas = [
-    'Nairobi',
-    'Mombasa',
-    'Kisumu',
-    'Nakuru',
-    'Eldoret',
+    'Kampala',
+    'Entebbe',
+    'Jinja',
+    'Mbarara',
+    'Gulu',
+    'Mbale',
+    'Kasese',
+    'Lira',
+    'Masaka',
+    'Soroti',
+    'Arua',
+    'Fort Portal',
   ];
 
-  List<File> get _safeBusinessImages => _businessImages ??= <File>[];
+  // List<File> get _safeBusinessImages => _businessImages ??= <File>[];
 
-  Future<File?> _pickImageFromGallery() async {
+  List<XFile> get _safeBusinessImages => _businessImages ??= <XFile>[];
+
+  Future<XFile?> _pickImageFromGallery() async {
     final picked = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 75,
+      imageQuality: 80,
       maxWidth: 1400,
     );
     if (picked == null) return null;
-    return File(picked.path);
+    return picked;
   }
 
   Future<void> _pickProfileImage() async {
@@ -114,29 +127,6 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
     setState(() => _safeBusinessImages.add(image));
   }
 
-  Future<String> _uploadSingleImage({
-    required File file,
-    required String folder,
-  }) async {
-    try {
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.path.split('/').last}';
-      final path = '$folder/$fileName';
-      final bytes = await file.readAsBytes();
-      
-      await Supabase.instance.client.storage
-          .from('provider-documents')
-          .uploadBinary(path, bytes);
-      
-      final url = Supabase.instance.client.storage
-          .from('provider-documents')
-          .getPublicUrl(path);
-      return url;
-    } catch (e) {
-      print('Error uploading image: $e');
-      rethrow;
-    }
-  }
-
   Future<List<String>> _uploadBusinessImages() async {
     final urls = <String>[];
     for (final file in _safeBusinessImages) {
@@ -147,6 +137,29 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
       urls.add(url);
     }
     return urls;
+  }
+
+  Future<String> _uploadSingleImage({
+    required XFile file,
+    required String folder,
+  }) async {
+    try {
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+      final path = '$folder/$fileName';
+      final bytes = await file.readAsBytes();
+
+      await Supabase.instance.client.storage
+          .from('provider-documents')
+          .uploadBinary(path, bytes);
+
+      final url = Supabase.instance.client.storage
+          .from('provider-documents')
+          .getPublicUrl(path);
+      return url;
+    } catch (e) {
+      print('Error uploading image: $e');
+      rethrow;
+    }
   }
 
   Future<void> _submitApplication() async {
@@ -177,6 +190,18 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile image, ID front, and ID back are required.'),
+        ),
+      );
+      return;
+    }
+
+    if (_serviceCategory == 'Transportation' &&
+        (_vehicleType.isEmpty || _licensePlate.isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Vehicle type and license plate are required for transport services.',
+          ),
         ),
       );
       return;
@@ -226,6 +251,8 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
         idBack: idBackUrl,
         certificate: certificateUrl,
         businessImages: businessImages,
+        vehicleType: _vehicleType,
+        licensePlate: _licensePlate,
       );
 
       await _service.applyAsProvider();
@@ -250,6 +277,37 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Widget _buildTransportSection() {
+    return _sectionCard(
+      title: 'Transport Details (Drivers & Boda Boda)',
+      subtitle: 'Required for Transportation category',
+      children: [
+        DropdownButtonFormField<String>(
+          decoration: const InputDecoration(
+            labelText: 'Vehicle Type',
+            border: OutlineInputBorder(),
+          ),
+          items: ['Car', 'Boda Boda', 'Motorcycle', 'Truck']
+              .map((type) => DropdownMenuItem(value: type, child: Text(type)))
+              .toList(),
+          validator: (v) => v == null ? 'Required' : null,
+          onChanged: (v) => setState(() => _vehicleType = v ?? ''),
+          onSaved: (v) => _vehicleType = v ?? '',
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          decoration: const InputDecoration(
+            labelText: 'License Plate Number',
+            hintText: 'e.g. UAB 123X / Boda plate',
+            border: OutlineInputBorder(),
+          ),
+          validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+          onSaved: (v) => _licensePlate = v!.trim(),
+        ),
+      ],
+    );
   }
 
   Widget _sectionCard({
@@ -294,7 +352,7 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
 
   Widget _imageTile({
     required String label,
-    required File? file,
+    required XFile? file,
     required VoidCallback onPick,
     bool optional = false,
   }) {
@@ -327,11 +385,32 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
           if (file != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                file,
-                height: 140,
-                width: double.infinity,
-                fit: BoxFit.cover,
+              child: FutureBuilder<Uint8List>(
+                future: file.readAsBytes(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.done) {
+                    if (snapshot.hasData) {
+                      return Image.memory(
+                        snapshot.data!,
+                        height: 140,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      );
+                    } else {
+                      return Container(
+                        height: 140,
+                        color: Colors.grey.shade200,
+                        alignment: Alignment.center,
+                        child: const Text('Failed to load image'),
+                      );
+                    }
+                  }
+                  return Container(
+                    height: 140,
+                    alignment: Alignment.center,
+                    child: const CircularProgressIndicator(),
+                  );
+                },
               ),
             )
           else
@@ -355,6 +434,8 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isTransport = _serviceCategory == 'Transportation';
+
     return Scaffold(
       backgroundColor: const Color(0xFFF3F7FF),
       appBar: AppBar(title: const Text('Become a Provider'), elevation: 0),
@@ -450,6 +531,7 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                 ),
               ],
             ),
+            if (isTransport) _buildTransportSection(),
             _sectionCard(
               title: 'Contact & Pricing',
               children: [
@@ -484,9 +566,11 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Hourly Rate (UGX)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: isTransport
+                        ? 'Rate per KM (UGX)'
+                        : 'Hourly Rate (UGX)',
+                    border: const OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
                   validator: (v) =>
@@ -621,11 +705,27 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
-                            child: Image.file(
-                              file,
-                              width: 100,
-                              height: 100,
-                              fit: BoxFit.cover,
+                            child: FutureBuilder<Uint8List>(
+                              future: file.readAsBytes(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                        ConnectionState.done &&
+                                    snapshot.hasData) {
+                                  return Image.memory(
+                                    snapshot.data!,
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  );
+                                }
+                                return Container(
+                                  width: 100,
+                                  height: 100,
+                                  color: Colors.grey.shade200,
+                                  alignment: Alignment.center,
+                                  child: const CircularProgressIndicator(),
+                                );
+                              },
                             ),
                           ),
                           Positioned(

@@ -1,7 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 
-// --- Firebase Mock Classes to prevent breaking UI code ---
+// Compatibility classes to keep existing UI code stable while using Supabase.
 class Timestamp {
   final DateTime _date;
   Timestamp(this._date);
@@ -67,18 +67,24 @@ class FirestoreService {
   ) {
     final docs = data.map((map) {
       // Map timestamp fields back to Timestamp object for UI
-      if (map.containsKey('createdAt'))
+      if (map.containsKey('createdAt')) {
         map['createdAt'] = parseTimestamp(map['createdAt']);
-      if (map.containsKey('updatedAt'))
+      }
+      if (map.containsKey('updatedAt')) {
         map['updatedAt'] = parseTimestamp(map['updatedAt']);
-      if (map.containsKey('timestamp'))
+      }
+      if (map.containsKey('timestamp')) {
         map['timestamp'] = parseTimestamp(map['timestamp']);
-      if (map.containsKey('appliedAt'))
+      }
+      if (map.containsKey('appliedAt')) {
         map['appliedAt'] = parseTimestamp(map['appliedAt']);
-      if (map.containsKey('reviewedAt'))
+      }
+      if (map.containsKey('reviewedAt')) {
         map['reviewedAt'] = parseTimestamp(map['reviewedAt']);
-      if (map.containsKey('lastMessageTime'))
+      }
+      if (map.containsKey('lastMessageTime')) {
         map['lastMessageTime'] = parseTimestamp(map['lastMessageTime']);
+      }
 
       final id = map['id']?.toString() ?? map['userId']?.toString() ?? '';
       return QueryDocumentSnapshot<Map<String, dynamic>>(id, map);
@@ -92,12 +98,15 @@ class FirestoreService {
   ) {
     if (map == null) return DocumentSnapshot(fallbackId, null, false);
 
-    if (map.containsKey('createdAt'))
+    if (map.containsKey('createdAt')) {
       map['createdAt'] = parseTimestamp(map['createdAt']);
-    if (map.containsKey('updatedAt'))
+    }
+    if (map.containsKey('updatedAt')) {
       map['updatedAt'] = parseTimestamp(map['updatedAt']);
-    if (map.containsKey('timestamp'))
+    }
+    if (map.containsKey('timestamp')) {
       map['timestamp'] = parseTimestamp(map['timestamp']);
+    }
 
     final id = map['id']?.toString() ?? map['userId']?.toString() ?? fallbackId;
     return DocumentSnapshot(id, map, true);
@@ -107,18 +116,20 @@ class FirestoreService {
     required String name,
     required String email,
     required String phone,
+    String? uid,
   }) async {
-    if (currentUid == null) throw Exception('User not authenticated');
+    final targetUid = uid ?? currentUid;
+    if (targetUid == null) throw Exception('User not authenticated');
     try {
       await _supabase.from('users').upsert({
-        'id': currentUid,
+        'id': targetUid,
         'name': name.trim(),
         'email': email.trim().toLowerCase(),
         'phone': phone.trim(),
         'role': 'customer',
         'updatedAt': FieldValue.serverTimestamp(),
       });
-      await ensureWalletExists();
+      await ensureWalletExists(targetUid);
     } catch (e) {
       rethrow;
     }
@@ -352,17 +363,17 @@ class FirestoreService {
       final amt = (p['amount'] as num?)?.toDouble() ?? 0.0;
       final st = (p['status'] ?? '').toString().toLowerCase();
       totalRevenue += amt;
-      if (st == 'completed' || st == 'success')
+      if (st == 'completed' || st == 'success') {
         completedPayments++;
-      else if (st == 'pending')
+      } else if (st == 'pending')
         pendingPayments++;
     }
 
     for (var b in bookings) {
       final st = (b['status'] ?? '').toString().toLowerCase();
-      if (st == 'completed' || st == 'confirmed')
+      if (st == 'completed' || st == 'confirmed') {
         completedBookings++;
-      else if (st == 'pending')
+      } else if (st == 'pending')
         pendingBookings++;
     }
 
@@ -476,6 +487,8 @@ class FirestoreService {
     required String idBack,
     required String certificate,
     required List<String> businessImages,
+    required String vehicleType,
+    required String licensePlate,
   }) async {
     if (currentUid == null) throw Exception('User not authenticated');
     final user = _supabase.auth.currentUser!;
@@ -498,6 +511,8 @@ class FirestoreService {
       'certificate': certificate,
       'businessImages': businessImages,
       'status': 'pending',
+      if (vehicleType != null) 'vehicleType': vehicleType,
+      if (licensePlate != null) 'licensePlate': licensePlate,
     });
   }
 
@@ -693,16 +708,17 @@ class FirestoreService {
     await _supabase.from('notifications').delete().eq('userId', currentUid!);
   }
 
-  Future<void> ensureWalletExists() async {
-    if (currentUid == null) throw Exception('User not authenticated');
+  Future<void> ensureWalletExists([String? overrideUserId]) async {
+    final targetId = overrideUserId ?? currentUid;
+    if (targetId == null) throw Exception('User not authenticated');
     final res = await _supabase
         .from('wallets')
         .select()
-        .eq('userId', currentUid!)
+        .eq('userId', targetId)
         .maybeSingle();
     if (res == null) {
       await _supabase.from('wallets').insert({
-        'userId': currentUid,
+        'userId': targetId,
         'balance': 0.0,
         'currency': 'UGX',
       });

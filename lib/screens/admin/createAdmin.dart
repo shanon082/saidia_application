@@ -1,8 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
-
-
 import 'package:saidia_app/auth/loginPage.dart';
+import 'package:saidia_app/services/firestore_services.dart';
 
 class CreateAdminPage extends StatefulWidget {
   const CreateAdminPage({Key? key}) : super(key: key);
@@ -14,7 +13,7 @@ class CreateAdminPage extends StatefulWidget {
 class _CreateAdminPageState extends State<CreateAdminPage> {
   final _formKey = GlobalKey<FormState>();
   final _auth = Supabase.instance.client.auth;
-  final _supabase = Supabase.instance.client;
+  final _dataService = FirestoreService();
   
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -42,7 +41,7 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
       final phone = _phoneController.text.trim();
       
       // Check if email already exists
-      final users = await _supabase
+      final users = await Supabase.instance.client
           .from('users')
           .select()
           .eq('email', email)
@@ -57,23 +56,33 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
       final authResult = await _auth.signUp(
         email: email,
         password: password,
+        data: {
+          'name': name,
+          'phone': phone,
+          'role': 'admin_request',
+        },
       );
       
       final user = authResult.user!;
       print('Auth user created. ID: ${user.id}');
-      
-      // Create admin profile in Supabase
-      print('Creating Supabase document...');
-      await _supabase.from('users').insert({
-        'id': user.id,
-        'name': name,
-        'email': email,
-        'phone': phone,
-        'role': 'admin',
-        'providerStatus': null,
-        'createdAt': DateTime.now().toUtc().toIso8601String(),
-        'updatedAt': DateTime.now().toUtc().toIso8601String(),
-      });
+
+      final hasSessionNow = _auth.currentSession != null;
+      if (!hasSessionNow) {
+        throw 'Auth user created, but no session is active yet. Verify email first, login, then promote role to admin in Supabase.';
+      }
+
+      // Create profile first, then elevate role for this admin bootstrap flow.
+      print('Creating Supabase profile...');
+      await _dataService.createUserProfile(
+        uid: user.id,
+        name: name,
+        email: email,
+        phone: phone,
+      );
+      await Supabase.instance.client
+          .from('users')
+          .update({'role': 'admin'})
+          .eq('id', user.id);
       
       print('Admin account created successfully!');
       

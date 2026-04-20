@@ -1,11 +1,10 @@
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:saidia_app/services/firestore_services.dart';
-import 'package:flutter/material.dart';
-
-
-
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -25,7 +24,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
   bool _isSaving = false;
-  File? _selectedImage;
+  XFile? _selectedImage;
+  Uint8List? _selectedImageBytes;
   String? _profileImageUrl;
 
   @override
@@ -64,8 +64,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
         imageQuality: 85,
       );
       if (image != null) {
+        final bytes = await image.readAsBytes();
         setState(() {
-          _selectedImage = File(image.path);
+          _selectedImage = image;
+          _selectedImageBytes = bytes;
         });
       }
     } catch (e) {
@@ -85,7 +87,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
       String? imageUrl;
       if (_selectedImage != null) {
         final path = '${user.id}.jpg';
-        await _supabase.storage.from('profile_images').upload(path, _selectedImage!, fileOptions: const FileOptions(upsert: true));
+        final bytes = await _selectedImage!.readAsBytes();
+        await _supabase.storage.from('profile_images').uploadBinary(path, bytes);
         imageUrl = _supabase.storage.from('profile_images').getPublicUrl(path);
       }
 
@@ -163,8 +166,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         CircleAvatar(
                           radius: 60,
                           backgroundColor: Colors.blue.shade100,
-                          backgroundImage: _selectedImage != null
-                              ? FileImage(_selectedImage!)
+                          backgroundImage: _selectedImageBytes != null
+                              ? MemoryImage(_selectedImageBytes!)
                               : _profileImageUrl != null
                                   ? NetworkImage(_profileImageUrl!)
                                   : null,

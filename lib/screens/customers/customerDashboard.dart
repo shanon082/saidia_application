@@ -4,7 +4,6 @@ import 'package:saidia_app/screens/customers/profilepage.dart';
 import 'package:saidia_app/screens/customers/servicesList.dart';
 import 'package:saidia_app/screens/provider/becomeProvider.dart';
 
-
 import 'package:saidia_app/auth/loginPage.dart';
 import 'package:saidia_app/screens/customers/notificationpage.dart';
 import 'package:saidia_app/screens/customers/bookingHistoryPage.dart';
@@ -212,7 +211,10 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   Widget _buildWelcomeSection(User? user) {
     return StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _supabase.from('users').stream(primaryKey: ['id']).eq('id', user?.id ?? ''),
+      stream: _supabase
+          .from('users')
+          .stream(primaryKey: ['id'])
+          .eq('id', user?.id ?? ''),
       builder: (context, snapshot) {
         String userName = 'Customer';
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
@@ -394,18 +396,24 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       child: Column(
         children: [
           StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _supabase.from('users').stream(primaryKey: ['id']).eq('id', user?.id ?? ''),
+            stream: _supabase
+                .from('users')
+                .stream(primaryKey: ['id'])
+                .eq('id', user?.id ?? ''),
             builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return _buildDrawerHeader('Loading...', 'Loading...', '');
+              String name = 'User';
+              String phone = 'No phone';
+              String email = user?.email ?? 'No email';
+              String? profileImageUrl;
+
+              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                final data = snapshot.data!.first;
+                name = data['name'] ?? 'User';
+                phone = data['phone'] ?? 'No phone';
+                profileImageUrl = data['profileImageUrl'];
               }
 
-              final data = snapshot.data!.first;
-              final String name = data['name'] ?? 'User';
-              final String phone = data['phone'] ?? 'No phone';
-              final String email = user?.email ?? 'No email';
-
-              return _buildDrawerHeader(name, email, phone);
+              return _buildDrawerHeader(name, email, phone, profileImageUrl);
             },
           ),
           Expanded(
@@ -519,7 +527,68 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     );
   }
 
-  Widget _buildDrawerHeader(String name, String email, String phone) {
+  // Widget _buildDrawerHeader(String name, String email, String phone) {
+  //   return Container(
+  //     width: double.infinity,
+  //     decoration: const BoxDecoration(
+  //       gradient: LinearGradient(
+  //         colors: [
+  //           Color.fromARGB(255, 20, 98, 187),
+  //           Color.fromARGB(255, 3, 153, 228),
+  //         ],
+  //         begin: Alignment.topLeft,
+  //         end: Alignment.bottomRight,
+  //       ),
+  //     ),
+  //     child: Center(
+  //       child: Padding(
+  //         padding: const EdgeInsets.fromLTRB(24, 25, 24, 24),
+  //         child: Column(
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             CircleAvatar(
+  //               radius: 40,
+  //               backgroundColor: Colors.white.withOpacity(0.25),
+  //               child: const Icon(Icons.person, size: 50, color: Colors.white),
+  //             ),
+  //             const SizedBox(height: 20),
+  //             Text(
+  //               name,
+  //               style: const TextStyle(
+  //                 color: Colors.white,
+  //                 fontSize: 26,
+  //                 fontWeight: FontWeight.bold,
+  //               ),
+  //             ),
+  //             const SizedBox(height: 6),
+  //             Text(
+  //               email,
+  //               style: TextStyle(
+  //                 color: Colors.white.withOpacity(0.9),
+  //                 fontSize: 15,
+  //               ),
+  //             ),
+  //             const SizedBox(height: 4),
+  //             Text(
+  //               phone,
+  //               style: TextStyle(
+  //                 color: Colors.white.withOpacity(0.9),
+  //                 fontSize: 15,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
+
+  Widget _buildDrawerHeader(
+    String name,
+    String email,
+    String phone,
+    String? profileImageUrl,
+  ) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -541,7 +610,13 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               CircleAvatar(
                 radius: 40,
                 backgroundColor: Colors.white.withOpacity(0.25),
-                child: const Icon(Icons.person, size: 50, color: Colors.white),
+                backgroundImage:
+                    profileImageUrl != null && profileImageUrl.isNotEmpty
+                    ? NetworkImage(profileImageUrl)
+                    : null,
+                child: profileImageUrl == null || profileImageUrl.isEmpty
+                    ? const Icon(Icons.person, size: 50, color: Colors.white)
+                    : null,
               ),
               const SizedBox(height: 20),
               Text(
