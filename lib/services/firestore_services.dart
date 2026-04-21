@@ -55,41 +55,72 @@ class FirestoreService {
   User? get currentUser => _supabase.auth.currentUser;
 
   // Helper to parse dates
-  Timestamp? parseTimestamp(dynamic val) {
-    if (val == null) return null;
-    if (val is String) return Timestamp.parse(val);
-    return null;
-  }
+  // Timestamp? parseTimestamp(dynamic val) {
+  //   if (val == null) return null;
+  //   if (val is String) return Timestamp.parse(val);
+  //   return null;
+  // }
 
   // Convert list to snapshot
   QuerySnapshot<Map<String, dynamic>> _toQuerySnapshot(
     List<Map<String, dynamic>> data,
   ) {
     final docs = data.map((map) {
-      // Map timestamp fields back to Timestamp object for UI
+      // Improved timestamp handling - works with both String and old Timestamp
       if (map.containsKey('createdAt')) {
-        map['createdAt'] = parseTimestamp(map['createdAt']);
+        map['createdAt'] = _parseTimestamp(map['createdAt']);
       }
       if (map.containsKey('updatedAt')) {
-        map['updatedAt'] = parseTimestamp(map['updatedAt']);
+        map['updatedAt'] = _parseTimestamp(map['updatedAt']);
       }
       if (map.containsKey('timestamp')) {
-        map['timestamp'] = parseTimestamp(map['timestamp']);
+        map['timestamp'] = _parseTimestamp(map['timestamp']);
       }
       if (map.containsKey('appliedAt')) {
-        map['appliedAt'] = parseTimestamp(map['appliedAt']);
+        map['appliedAt'] = _parseTimestamp(map['appliedAt']);
       }
       if (map.containsKey('reviewedAt')) {
-        map['reviewedAt'] = parseTimestamp(map['reviewedAt']);
+        map['reviewedAt'] = _parseTimestamp(map['reviewedAt']);
       }
       if (map.containsKey('lastMessageTime')) {
-        map['lastMessageTime'] = parseTimestamp(map['lastMessageTime']);
+        map['lastMessageTime'] = _parseTimestamp(map['lastMessageTime']);
+      }
+      if (map.containsKey('customerConfirmedAt')) {
+        map['customerConfirmedAt'] = _parseTimestamp(
+          map['customerConfirmedAt'],
+        );
       }
 
       final id = map['id']?.toString() ?? map['userId']?.toString() ?? '';
       return QueryDocumentSnapshot<Map<String, dynamic>>(id, map);
     }).toList();
+
     return QuerySnapshot(docs);
+  }
+
+Timestamp? _parseTimestamp(dynamic val) {
+    if (val == null) return null;
+
+    if (val is Timestamp) {
+      return val;
+    }
+
+    if (val is String) {
+      try {
+        final dateTime = DateTime.parse(val);
+        return Timestamp(dateTime);
+      } catch (e) {
+        print('Failed to parse timestamp: $val');
+        return null;
+      }
+    }
+
+    print('Unknown timestamp type: ${val.runtimeType}');
+    return null;
+  }
+
+  Timestamp? parseTimestamp(dynamic val) {
+    return _parseTimestamp(val);
   }
 
   DocumentSnapshot<Map<String, dynamic>> _toDocSnapshot(
@@ -198,20 +229,31 @@ class FirestoreService {
     required String name,
     required String phone,
   }) async {
+    // This method is kept for future use (e.g., from Edge Functions)
     final res = await _supabase.auth.signUp(
       email: email.trim().toLowerCase(),
       password: password,
     );
+
     final user = res.user;
-    if (user != null) {
-      await _supabase.from('users').insert({
-        'id': user.id,
-        'name': name.trim(),
-        'email': email.trim().toLowerCase(),
-        'phone': phone.trim(),
-        'role': 'admin',
-      });
-    }
+    if (user == null) throw Exception('Failed to create admin user');
+
+    // Confirm email
+    await _supabase.auth.admin.updateUserById(
+      user.id,
+      attributes: AdminUserAttributes(emailConfirm: true),
+    );
+
+    await _supabase.from('users').upsert({
+      'id': user.id,
+      'name': name.trim(),
+      'email': email.trim().toLowerCase(),
+      'phone': phone.trim(),
+      'role': 'admin',
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await ensureWalletExists(user.id);
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> getAllProviderApplications() {

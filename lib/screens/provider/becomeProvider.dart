@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -18,14 +17,18 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
   final _service = FirestoreService();
   final _picker = ImagePicker();
 
+  // Controllers for text fields
+  final _specializationController = TextEditingController();
+  final _experienceController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _phonenumberController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _hourlyRateController = TextEditingController();
+  final _licensePlateController = TextEditingController();
+
   String _serviceCategory = '';
-  String _specialization = '';
-  String _experience = '';
-  String _description = '';
-  String _phonenumber = '';
-  String _city = '';
-  String _address = '';
-  String _hourlyRate = '';
+  String _vehicleType = '';
 
   final List<String> _serviceAreas = [];
   final List<String> _workingDays = [];
@@ -39,9 +42,6 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
   XFile? _certificateImage;
 
   bool _isLoading = false;
-
-  String _vehicleType = '';
-  String _licensePlate = '';
 
   final List<String> _categories = [
     'Plumbing',
@@ -58,85 +58,55 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
   ];
 
   final List<String> _days = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
   ];
 
   final List<String> _possibleAreas = [
-    'Kampala',
-    'Entebbe',
-    'Jinja',
-    'Mbarara',
-    'Gulu',
-    'Mbale',
-    'Kasese',
-    'Lira',
-    'Masaka',
-    'Soroti',
-    'Arua',
-    'Fort Portal',
+    'Kampala', 'Entebbe', 'Jinja', 'Mbarara', 'Gulu', 'Mbale',
+    'Kasese', 'Lira', 'Masaka', 'Soroti', 'Arua', 'Fort Portal',
   ];
-
-  // List<File> get _safeBusinessImages => _businessImages ??= <File>[];
 
   List<XFile> get _safeBusinessImages => _businessImages ??= <XFile>[];
 
   Future<XFile?> _pickImageFromGallery() async {
-    final picked = await _picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-      maxWidth: 1400,
-    );
-    if (picked == null) return null;
-    return picked;
+    try {
+      return await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 1400,
+      );
+    } catch (e) {
+      print('Image pick error: $e');
+      return null;
+    }
   }
 
   Future<void> _pickProfileImage() async {
     final image = await _pickImageFromGallery();
-    if (image == null) return;
-    setState(() => _profileImage = image);
+    if (image != null) setState(() => _profileImage = image);
   }
 
   Future<void> _pickIdFrontImage() async {
     final image = await _pickImageFromGallery();
-    if (image == null) return;
-    setState(() => _idFrontImage = image);
+    if (image != null) setState(() => _idFrontImage = image);
   }
 
   Future<void> _pickIdBackImage() async {
     final image = await _pickImageFromGallery();
-    if (image == null) return;
-    setState(() => _idBackImage = image);
+    if (image != null) setState(() => _idBackImage = image);
   }
 
   Future<void> _pickCertificateImage() async {
     final image = await _pickImageFromGallery();
-    if (image == null) return;
-    setState(() => _certificateImage = image);
+    if (image != null) setState(() => _certificateImage = image);
   }
 
   Future<void> _pickBusinessImage() async {
     if (_safeBusinessImages.length >= _maxBusinessImages) return;
     final image = await _pickImageFromGallery();
-    if (image == null) return;
-    setState(() => _safeBusinessImages.add(image));
-  }
-
-  Future<List<String>> _uploadBusinessImages() async {
-    final urls = <String>[];
-    for (final file in _safeBusinessImages) {
-      final url = await _uploadSingleImage(
-        file: file,
-        folder: 'provider_documents/business_images',
-      );
-      urls.add(url);
+    if (image != null) {
+      setState(() => _safeBusinessImages.add(image));
     }
-    return urls;
   }
 
   Future<String> _uploadSingleImage({
@@ -149,60 +119,55 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
       final bytes = await file.readAsBytes();
 
       await Supabase.instance.client.storage
-          .from('provider-documents')
+          .from('provider_documents')
           .uploadBinary(path, bytes);
 
-      final url = Supabase.instance.client.storage
-          .from('provider-documents')
+      return Supabase.instance.client.storage
+          .from('provider_documents')
           .getPublicUrl(path);
-      return url;
     } catch (e) {
-      print('Error uploading image: $e');
+      print('Upload error: $e');
       rethrow;
     }
   }
 
+  Future<List<String>> _uploadBusinessImages() async {
+    final urls = <String>[];
+    for (final file in _safeBusinessImages) {
+      final url = await _uploadSingleImage(file: file, folder: 'provider_documents/business_images');
+      urls.add(url);
+    }
+    return urls;
+  }
+
   Future<void> _submitApplication() async {
     if (!_formKey.currentState!.validate()) return;
-    _formKey.currentState!.save();
 
     if (_serviceAreas.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one service area.'),
-        ),
+        const SnackBar(content: Text('Please select at least one service area.')),
       );
       return;
     }
 
     if (_workingDays.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one working day.'),
-        ),
+        const SnackBar(content: Text('Please select at least one working day.')),
       );
       return;
     }
 
-    if (_profileImage == null ||
-        _idFrontImage == null ||
-        _idBackImage == null) {
+    if (_profileImage == null || _idFrontImage == null || _idBackImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profile image, ID front, and ID back are required.'),
-        ),
+        const SnackBar(content: Text('Profile image, ID front, and ID back are required.')),
       );
       return;
     }
 
     if (_serviceCategory == 'Transportation' &&
-        (_vehicleType.isEmpty || _licensePlate.isEmpty)) {
+        (_vehicleType.isEmpty || _licensePlateController.text.trim().isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Vehicle type and license plate are required for transport services.',
-          ),
-        ),
+        const SnackBar(content: Text('Vehicle type and license plate are required for transport services.')),
       );
       return;
     }
@@ -237,47 +202,47 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
 
       await _service.submitProviderApplication(
         serviceCategory: _serviceCategory,
-        specialization: _specialization,
-        experience: _experience,
-        description: _description,
-        phonenumber: _phonenumber,
+        specialization: _specializationController.text.trim(),
+        experience: _experienceController.text.trim(),
+        description: _descriptionController.text.trim(),
+        phonenumber: _phonenumberController.text.trim(),
         imageUrl: profileImageUrl,
-        city: _city,
-        address: _address,
-        hourlyRate: _hourlyRate,
-        serviceAreas: _serviceAreas,
-        workingDays: _workingDays,
+        city: _cityController.text.trim(),
+        address: _addressController.text.trim(),
+        hourlyRate: _hourlyRateController.text.trim(),
+        serviceAreas: List.from(_serviceAreas),
+        workingDays: List.from(_workingDays),
         idFront: idFrontUrl,
         idBack: idBackUrl,
         certificate: certificateUrl,
         businessImages: businessImages,
         vehicleType: _vehicleType,
-        licensePlate: _licensePlate,
+        licensePlate: _licensePlateController.text.trim(),
       );
 
       await _service.applyAsProvider();
 
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Application submitted successfully. Awaiting admin approval.',
-          ),
+          content: Text('Application submitted successfully. Awaiting admin approval.'),
           backgroundColor: Colors.green,
         ),
       );
+
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Submission failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Submission failed: $e')),
+      );
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // ==================== UI Widgets ====================
 
   Widget _buildTransportSection() {
     return _sectionCard(
@@ -292,19 +257,18 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
           items: ['Car', 'Boda Boda', 'Motorcycle', 'Truck']
               .map((type) => DropdownMenuItem(value: type, child: Text(type)))
               .toList(),
-          validator: (v) => v == null ? 'Required' : null,
+          validator: (v) => v == null || v.isEmpty ? 'Required' : null,
           onChanged: (v) => setState(() => _vehicleType = v ?? ''),
-          onSaved: (v) => _vehicleType = v ?? '',
         ),
         const SizedBox(height: 12),
         TextFormField(
+          controller: _licensePlateController,
           decoration: const InputDecoration(
             labelText: 'License Plate Number',
-            hintText: 'e.g. UAB 123X / Boda plate',
+            hintText: 'e.g. UAB 123X',
             border: OutlineInputBorder(),
           ),
           validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-          onSaved: (v) => _licensePlate = v!.trim(),
         ),
       ],
     );
@@ -323,7 +287,7 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -332,16 +296,10 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
           if (subtitle != null) ...[
             const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
-            ),
+            Text(subtitle, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
           ],
           const SizedBox(height: 14),
           ...children,
@@ -388,27 +346,26 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
               child: FutureBuilder<Uint8List>(
                 future: file.readAsBytes(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.done) {
-                    if (snapshot.hasData) {
-                      return Image.memory(
-                        snapshot.data!,
-                        height: 140,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      );
-                    } else {
-                      return Container(
-                        height: 140,
-                        color: Colors.grey.shade200,
-                        alignment: Alignment.center,
-                        child: const Text('Failed to load image'),
-                      );
-                    }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Container(
+                      height: 140,
+                      alignment: Alignment.center,
+                      child: const CircularProgressIndicator(),
+                    );
+                  }
+                  if (snapshot.hasData) {
+                    return Image.memory(
+                      snapshot.data!,
+                      height: 140,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    );
                   }
                   return Container(
                     height: 140,
+                    color: Colors.grey.shade200,
                     alignment: Alignment.center,
-                    child: const CircularProgressIndicator(),
+                    child: const Text('Failed to load image'),
                   );
                 },
               ),
@@ -444,6 +401,7 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // Header
             Container(
               padding: const EdgeInsets.all(16),
               margin: const EdgeInsets.only(bottom: 16),
@@ -460,132 +418,93 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                 children: [
                   Text(
                     'Start Earning With Your Skills',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Complete your profile and upload your documents. Approval usually takes 24-48 hours.',
+                    'Complete your profile and upload documents. Approval usually takes 24-48 hours.',
                     style: TextStyle(color: Colors.white),
                   ),
                 ],
               ),
             ),
+
+            // Service Information
             _sectionCard(
               title: 'Service Information',
               children: [
                 DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Service Category',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _categories
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        ),
-                      )
-                      .toList(),
-                  validator: (v) => v == null ? 'Required' : null,
+                  decoration: const InputDecoration(labelText: 'Service Category', border: OutlineInputBorder()),
+                  items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                  validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                   onChanged: (v) => setState(() => _serviceCategory = v ?? ''),
-                  onSaved: (v) => _serviceCategory = v ?? '',
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Specialization',
-                    hintText: 'e.g. Pipe installation, House wiring',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  onSaved: (v) => _specialization = v!.trim(),
+                  controller: _specializationController,
+                  decoration: const InputDecoration(labelText: 'Specialization', hintText: 'e.g. Pipe installation', border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Years of Experience',
-                    hintText: 'e.g. 5',
-                    border: OutlineInputBorder(),
-                  ),
+                  controller: _experienceController,
+                  decoration: const InputDecoration(labelText: 'Years of Experience', hintText: 'e.g. 5', border: OutlineInputBorder()),
                   keyboardType: TextInputType.number,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  onSaved: (v) => _experience = v!.trim(),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Service Description',
-                    border: OutlineInputBorder(),
-                  ),
+                  controller: _descriptionController,
+                  decoration: const InputDecoration(labelText: 'Service Description', border: OutlineInputBorder()),
                   minLines: 3,
-                  maxLines: 4,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  onSaved: (v) => _description = v!.trim(),
+                  maxLines: 5,
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
               ],
             ),
+
             if (isTransport) _buildTransportSection(),
+
+            // Contact & Pricing
             _sectionCard(
               title: 'Contact & Pricing',
               children: [
                 TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  onSaved: (v) => _phonenumber = v!.trim(),
+                  controller: _phonenumberController,
+                  decoration: const InputDecoration(labelText: 'Phone Number', border: OutlineInputBorder()),
+                  keyboardType: TextInputType.phone,
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'City',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  onSaved: (v) => _city = v!.trim(),
+                  controller: _cityController,
+                  decoration: const InputDecoration(labelText: 'City', border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
-                  decoration: const InputDecoration(
-                    labelText: 'Full Address',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  onSaved: (v) => _address = v!.trim(),
+                  controller: _addressController,
+                  decoration: const InputDecoration(labelText: 'Full Address', border: OutlineInputBorder()),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
+                  controller: _hourlyRateController,
                   decoration: InputDecoration(
-                    labelText: isTransport
-                        ? 'Rate per KM (UGX)'
-                        : 'Hourly Rate (UGX)',
+                    labelText: isTransport ? 'Rate per KM (UGX)' : 'Hourly Rate (UGX)',
                     border: const OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.number,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  onSaved: (v) => _hourlyRate = v!.trim(),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
               ],
             ),
+
+            // Coverage & Availability
             _sectionCard(
               title: 'Coverage & Availability',
               children: [
-                const Text(
-                  'Service Areas',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                const Text('Service Areas', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -595,9 +514,9 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                     return FilterChip(
                       label: Text(area),
                       selected: selected,
-                      onSelected: (value) {
+                      onSelected: (selected) {
                         setState(() {
-                          if (value) {
+                          if (selected) {
                             _serviceAreas.add(area);
                           } else {
                             _serviceAreas.remove(area);
@@ -607,11 +526,8 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                     );
                   }).toList(),
                 ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Working Days',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
+                const SizedBox(height: 16),
+                const Text('Working Days', style: TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -621,13 +537,10 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                     return FilterChip(
                       label: Text(day),
                       selected: selected,
-                      onSelected: (value) {
+                      onSelected: (selected) {
                         setState(() {
-                          if (value) {
-                            _workingDays.add(day);
-                          } else {
-                            _workingDays.remove(day);
-                          }
+                          if (selected) _workingDays.add(day);
+                          else _workingDays.remove(day);
                         });
                       },
                     );
@@ -635,44 +548,24 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                 ),
               ],
             ),
+
+            // Upload Images
             _sectionCard(
               title: 'Upload Images & Documents',
-              subtitle:
-                  'Profile image + ID front/back are required. Certificate is optional.',
+              subtitle: 'Profile image + ID front/back are required. Certificate is optional.',
               children: [
-                _imageTile(
-                  label: 'Profile Image',
-                  file: _profileImage,
-                  onPick: _pickProfileImage,
-                ),
-                _imageTile(
-                  label: 'ID Front',
-                  file: _idFrontImage,
-                  onPick: _pickIdFrontImage,
-                ),
-                _imageTile(
-                  label: 'ID Back',
-                  file: _idBackImage,
-                  onPick: _pickIdBackImage,
-                ),
-                _imageTile(
-                  label: 'Certificate',
-                  file: _certificateImage,
-                  onPick: _pickCertificateImage,
-                  optional: true,
-                ),
-                const SizedBox(height: 8),
+                _imageTile(label: 'Profile Image', file: _profileImage, onPick: _pickProfileImage),
+                _imageTile(label: 'ID Front', file: _idFrontImage, onPick: _pickIdFrontImage),
+                _imageTile(label: 'ID Back', file: _idBackImage, onPick: _pickIdBackImage),
+                _imageTile(label: 'Certificate', file: _certificateImage, onPick: _pickCertificateImage, optional: true),
+
+                const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Business Images (up to 3)',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                    const Text('Business Images (up to 3)', style: TextStyle(fontWeight: FontWeight.w600)),
                     TextButton.icon(
-                      onPressed: _safeBusinessImages.length < _maxBusinessImages
-                          ? _pickBusinessImage
-                          : null,
+                      onPressed: _safeBusinessImages.length < _maxBusinessImages ? _pickBusinessImage : null,
                       icon: const Icon(Icons.add_a_photo_outlined),
                       label: const Text('Add'),
                     ),
@@ -682,24 +575,15 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                 if (_safeBusinessImages.isEmpty)
                   Container(
                     height: 90,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
                     alignment: Alignment.center,
-                    child: Text(
-                      'No business images selected',
-                      style: TextStyle(color: Colors.grey.shade600),
-                    ),
+                    child: const Text('No business images selected', style: TextStyle(color: Colors.grey)),
                   )
                 else
                   Wrap(
                     spacing: 10,
                     runSpacing: 10,
-                    children: List.generate(_safeBusinessImages.length, (
-                      index,
-                    ) {
+                    children: List.generate(_safeBusinessImages.length, (index) {
                       final file = _safeBusinessImages[index];
                       return Stack(
                         children: [
@@ -708,44 +592,25 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                             child: FutureBuilder<Uint8List>(
                               future: file.readAsBytes(),
                               builder: (context, snapshot) {
-                                if (snapshot.connectionState ==
-                                        ConnectionState.done &&
-                                    snapshot.hasData) {
-                                  return Image.memory(
-                                    snapshot.data!,
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  );
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return Container(width: 100, height: 100, color: Colors.grey.shade200, alignment: Alignment.center, child: const CircularProgressIndicator());
                                 }
-                                return Container(
-                                  width: 100,
-                                  height: 100,
-                                  color: Colors.grey.shade200,
-                                  alignment: Alignment.center,
-                                  child: const CircularProgressIndicator(),
-                                );
+                                if (snapshot.hasData) {
+                                  return Image.memory(snapshot.data!, width: 100, height: 100, fit: BoxFit.cover);
+                                }
+                                return Container(width: 100, height: 100, color: Colors.grey.shade200, alignment: Alignment.center, child: const Text('Error'));
                               },
                             ),
                           ),
                           Positioned(
-                            right: 2,
-                            top: 2,
-                            child: InkWell(
-                              onTap: () => setState(
-                                () => _safeBusinessImages.removeAt(index),
-                              ),
+                            right: 4,
+                            top: 4,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _safeBusinessImages.removeAt(index)),
                               child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: Colors.black54,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.close,
-                                  size: 14,
-                                  color: Colors.white,
-                                ),
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                                child: const Icon(Icons.close, size: 16, color: Colors.white),
                               ),
                             ),
                           ),
@@ -755,7 +620,10 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                   ),
               ],
             ),
-            const SizedBox(height: 8),
+
+            const SizedBox(height: 20),
+
+            // Submit Button
             SizedBox(
               height: 54,
               child: ElevatedButton(
@@ -763,41 +631,37 @@ class _BecomeProviderPageState extends State<BecomeProviderPage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _isLoading
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        'Submit Application',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                    : const Text('Submit Application', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
               ),
             ),
-            const SizedBox(height: 14),
-            Text(
+
+            const SizedBox(height: 16),
+            const Text(
               'Your request is reviewed by admin within 24-48 hours. We will notify you once approved.',
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontStyle: FontStyle.italic,
-              ),
+              style: TextStyle(color: Color.fromARGB(255, 97, 97, 97), fontStyle: FontStyle.italic),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 30),
           ],
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _specializationController.dispose();
+    _experienceController.dispose();
+    _descriptionController.dispose();
+    _phonenumberController.dispose();
+    _cityController.dispose();
+    _addressController.dispose();
+    _hourlyRateController.dispose();
+    _licensePlateController.dispose();
+    super.dispose();
   }
 }

@@ -38,12 +38,32 @@ class _MessagesPageState extends State<MessagesPage> {
     return '${ids[0]}_${ids[1]}';
   }
 
-  String _formatTime(Timestamp? ts) {
+  // String _formatTime(Timestamp? ts) {
+  //   if (ts == null) return '';
+  //   final dt = ts.toDate();
+  //   final now = DateTime.now();
+  //   if (now.difference(dt).inDays == 0) return DateFormat('HH:mm').format(dt);
+  //   return DateFormat('dd MMM').format(dt);
+  // }
+
+    String _formatTime(dynamic ts) {
     if (ts == null) return '';
-    final dt = ts.toDate();
-    final now = DateTime.now();
-    if (now.difference(dt).inDays == 0) return DateFormat('HH:mm').format(dt);
-    return DateFormat('dd MMM').format(dt);
+
+    DateTime? dateTime;
+
+    if (ts is Timestamp) {
+      dateTime = ts.toDate();
+    } else if (ts is String) {
+      try {
+        dateTime = DateTime.parse(ts);
+      } catch (_) {}
+    } else if (ts is DateTime) {
+      dateTime = ts;
+    }
+
+    if (dateTime == null) return '';
+
+    return DateFormat('HH:mm').format(dateTime);
   }
 
   Future<List<_ConversationSummary>> _loadConversationSummaries({

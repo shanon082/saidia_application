@@ -12,89 +12,82 @@ class CreateAdminPage extends StatefulWidget {
 
 class _CreateAdminPageState extends State<CreateAdminPage> {
   final _formKey = GlobalKey<FormState>();
-  final _auth = Supabase.instance.client.auth;
   final _dataService = FirestoreService();
-  
+
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   String? _errorMessage;
-  
+
   Future<void> _createAdminAccount() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
-    
+
     try {
       final email = _emailController.text.trim().toLowerCase();
       final password = _passwordController.text;
       final name = _nameController.text.trim();
       final phone = _phoneController.text.trim();
-      
-      // Check if email already exists
-      final users = await Supabase.instance.client
-          .from('users')
-          .select()
-          .eq('email', email)
-          .limit(1);
-      
-      if (users.isNotEmpty) {
-        throw 'Email is already registered';
-      }
-      
-      // Create auth user
-      print('Creating auth user...');
-      final authResult = await _auth.signUp(
+
+      print('🔄 Creating admin account...');
+
+      // Step 1: Create user with signUp
+      final authResponse = await Supabase.instance.client.auth.signUp(
         email: email,
         password: password,
         data: {
           'name': name,
           'phone': phone,
-          'role': 'admin_request',
         },
       );
-      
-      final user = authResult.user!;
-      print('Auth user created. ID: ${user.id}');
 
-      final hasSessionNow = _auth.currentSession != null;
-      if (!hasSessionNow) {
-        throw 'Auth user created, but no session is active yet. Verify email first, login, then promote role to admin in Supabase.';
-      }
+      final user = authResponse.user;
+      if (user == null) throw Exception('Failed to create user');
 
-      // Create profile first, then elevate role for this admin bootstrap flow.
-      print('Creating Supabase profile...');
+      print('✅ Auth user created. ID: ${user.id}');
+
+      // Step 2: Confirm email immediately (bypasses verification)
+      await Supabase.instance.client.auth.admin.updateUserById(
+        user.id,
+        attributes: AdminUserAttributes(
+          emailConfirm: true,
+        ),
+      );
+
+      // Step 3: Create user profile in 'users' table
       await _dataService.createUserProfile(
         uid: user.id,
         name: name,
         email: email,
         phone: phone,
       );
+
+      // Step 4: Set role to admin
       await Supabase.instance.client
           .from('users')
           .update({'role': 'admin'})
           .eq('id', user.id);
-      
-      print('Admin account created successfully!');
-      
-      // Show success message
+
+      print('🎉 Admin account created successfully!');
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Admin account created successfully!'),
+          content: Text('Admin account created successfully! You can now login.'),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
+          duration: Duration(seconds: 4),
         ),
       );
-      
+
       // Navigate back to login
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -103,29 +96,26 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
           (route) => false,
         );
       }
-      
     } on AuthException catch (e) {
       print('AuthException: ${e.message}');
-      String errorMessage = 'Failed to create admin account';
-      if (e.message.contains('already in use')) {
-        errorMessage = 'Email is already in use';
-      } else if (e.message.contains('weak') || e.message.contains('password')) {
-        errorMessage = 'Password is too weak';
-      } else if (e.message.contains('Invalid email')) {
-        errorMessage = 'Invalid email address';
-      } else {
-        errorMessage = e.message;
+      String msg = e.message;
+      if (e.message.contains('already in use') || e.message.contains('already exists')) {
+        msg = 'Email is already registered';
+      } else if (e.message.contains('weak')) {
+        msg = 'Password is too weak';
       }
-      setState(() => _errorMessage = errorMessage);
+      setState(() => _errorMessage = msg);
     } catch (e, stackTrace) {
       print('Error creating admin: $e');
       print('Stack trace: $stackTrace');
-      setState(() => _errorMessage = e.toString());
+      setState(() => _errorMessage = 'Failed to create admin: ${e.toString()}');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -142,7 +132,6 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 40),
-              // Admin Icon
               Container(
                 width: 100,
                 height: 100,
@@ -169,15 +158,11 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
               const SizedBox(height: 8),
               const Text(
                 'Set up the first admin account for SaidiA platform',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
-              
-              // Error Message
+
               if (_errorMessage != null)
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -192,51 +177,33 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
                       const Icon(Icons.error_outline, color: Colors.red, size: 20),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          _errorMessage!,
-                          style: const TextStyle(color: Colors.red),
-                        ),
+                        child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
                 ),
-              
-              // Name Field
+
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
                   labelText: 'Full Name',
                   prefixIcon: Icon(Icons.person, color: Colors.red),
                   border: OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter your full name';
-                  }
-                  return null;
-                },
+                validator: (value) => (value == null || value.trim().isEmpty) ? 'Please enter full name' : null,
               ),
               const SizedBox(height: 20),
-              
-              // Email Field
+
               TextFormField(
                 controller: _emailController,
                 decoration: const InputDecoration(
                   labelText: 'Email Address',
                   prefixIcon: Icon(Icons.email, color: Colors.red),
                   border: OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter email address';
-                  }
+                  if (value == null || value.trim().isEmpty) return 'Please enter email';
                   if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
                     return 'Please enter a valid email';
                   }
@@ -244,99 +211,63 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
                 },
               ),
               const SizedBox(height: 20),
-              
-              // Phone Field
+
               TextFormField(
                 controller: _phoneController,
                 decoration: const InputDecoration(
                   labelText: 'Phone Number',
                   prefixIcon: Icon(Icons.phone, color: Colors.red),
                   border: OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
                   hintText: '07xx xxx xxx',
                 ),
                 keyboardType: TextInputType.phone,
                 validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter phone number';
-                  }
-                  if (!RegExp(r'^[0-9]{10}$').hasMatch(value.replaceAll(' ', ''))) {
-                    return 'Please enter a valid phone number';
-                  }
+                  if (value == null || value.trim().isEmpty) return 'Please enter phone number';
                   return null;
                 },
               ),
               const SizedBox(height: 20),
-              
-              // Password Field
+
               TextFormField(
                 controller: _passwordController,
                 decoration: InputDecoration(
                   labelText: 'Password',
                   prefixIcon: const Icon(Icons.lock, color: Colors.red),
                   border: const OutlineInputBorder(),
-                  focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.grey,
-                    ),
-                    onPressed: () {
-                      setState(() => _obscurePassword = !_obscurePassword);
-                    },
+                    icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
                 obscureText: _obscurePassword,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter password';
-                  }
-                  if (value.length < 6) {
-                    return 'Password must be at least 6 characters';
-                  }
+                  if (value == null || value.isEmpty) return 'Please enter password';
+                  if (value.length < 6) return 'Password must be at least 6 characters';
                   return null;
                 },
               ),
               const SizedBox(height: 20),
-              
-              // Confirm Password Field
+
               TextFormField(
                 controller: _confirmPasswordController,
                 decoration: InputDecoration(
                   labelText: 'Confirm Password',
                   prefixIcon: const Icon(Icons.lock, color: Colors.red),
                   border: const OutlineInputBorder(),
-                  focusedBorder: const OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.red),
-                  ),
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.grey,
-                    ),
-                    onPressed: () {
-                      setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
-                    },
+                    icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                    onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                   ),
                 ),
                 obscureText: _obscureConfirmPassword,
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please confirm password';
-                  }
-                  if (value != _passwordController.text) {
-                    return 'Passwords do not match';
-                  }
+                  if (value == null || value.isEmpty) return 'Please confirm password';
+                  if (value != _passwordController.text) return 'Passwords do not match';
                   return null;
                 },
               ),
               const SizedBox(height: 40),
-              
-              // Warning Note
+
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -351,30 +282,19 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
                       children: [
                         Icon(Icons.warning_amber, color: Colors.orange, size: 20),
                         SizedBox(width: 8),
-                        Text(
-                          'Important Note',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange,
-                          ),
-                        ),
+                        Text('Important Note', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
                       ],
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'This will create a super admin account with full access to the platform. '
-                      'Keep the credentials secure and only share with trusted administrators.',
-                      style: TextStyle(
-                        color: Color.fromARGB(255, 239, 108, 0),
-                        fontSize: 14,
-                      ),
+                      'This will create a super admin account with full access. Keep credentials secure.',
+                      style: TextStyle(color: Color.fromARGB(255, 239, 108, 0), fontSize: 14),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 30),
-              
-              // Create Button
+
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
@@ -382,32 +302,19 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: _isLoading
                       ? const SizedBox(
                           height: 24,
                           width: 24,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                         )
-                      : const Text(
-                          'Create Admin Account',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                      : const Text('Create Admin Account', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(height: 20),
-              
-              // Back to Login
+
               TextButton(
                 onPressed: () {
                   Navigator.pushAndRemoveUntil(
@@ -416,13 +323,7 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
                     (route) => false,
                   );
                 },
-                child: const Text(
-                  'Back to Login',
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontSize: 16,
-                  ),
-                ),
+                child: const Text('Back to Login', style: TextStyle(color: Colors.red, fontSize: 16)),
               ),
             ],
           ),
@@ -430,7 +331,7 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
       ),
     );
   }
-  
+
   @override
   void dispose() {
     _emailController.dispose();

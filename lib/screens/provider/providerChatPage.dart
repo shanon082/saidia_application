@@ -34,20 +34,39 @@ class _ProviderChatPageState extends State<ProviderChatPage> {
   Future<void> _fetchUserName() async {
     if (widget.otherUserName != null && widget.otherUserName!.isNotEmpty) {
       _fetchedName = widget.otherUserName;
-      setState((){});
+      setState(() {});
       return;
     }
     try {
-      final res = await Supabase.instance.client.from('users').select('name').eq('id', widget.otherUserId).maybeSingle();
+      final res = await Supabase.instance.client
+          .from('users')
+          .select('name')
+          .eq('id', widget.otherUserId)
+          .maybeSingle();
       if (res != null) {
         setState(() => _fetchedName = res['name']);
       }
     } catch (_) {}
   }
 
-  String _formatTime(Timestamp? ts) {
+  String _formatTime(dynamic ts) {
     if (ts == null) return '';
-    return DateFormat('HH:mm').format(ts.toDate());
+
+    DateTime? dateTime;
+
+    if (ts is Timestamp) {
+      dateTime = ts.toDate();
+    } else if (ts is String) {
+      try {
+        dateTime = DateTime.parse(ts);
+      } catch (_) {}
+    } else if (ts is DateTime) {
+      dateTime = ts;
+    }
+
+    if (dateTime == null) return '';
+
+    return DateFormat('HH:mm').format(dateTime);
   }
 
   Future<void> _send() async {
