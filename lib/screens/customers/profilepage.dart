@@ -1,3 +1,5 @@
+import 'package:saidia_app/screens/customers/aboutAppPage.dart';
+import 'package:saidia_app/screens/customers/privacySecurityPage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 // import 'package:saidia_app/services/firestore_services.dart';
 import 'package:flutter/material.dart';
@@ -202,7 +204,12 @@ class _ProfilePageState extends State<ProfilePage> {
                         _buildMenuItem(
                           icon: Icons.lock_outline,
                           title: 'Privacy & Security',
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => PrivacySecurityPage())
+                            );
+                          },
                         ),
                         _buildMenuItem(
                           icon: Icons.payment,
@@ -227,7 +234,12 @@ class _ProfilePageState extends State<ProfilePage> {
                         _buildMenuItem(
                           icon: Icons.info_outline,
                           title: 'About SaidiA',
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => AboutAppPage())
+                            );
+                          },
                         ),
                         SizedBox(height: 24),
                         

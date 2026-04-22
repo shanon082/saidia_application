@@ -145,7 +145,7 @@ class _ProviderChatPageState extends State<ProviderChatPage> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                              _formatTime(data['timestamp'] as Timestamp?),
+                              _formatTime(data['timestamp'] ?? data['createdAt']),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: mine

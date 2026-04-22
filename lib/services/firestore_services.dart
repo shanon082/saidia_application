@@ -310,62 +310,152 @@ Timestamp? _parseTimestamp(dynamic val) {
     required String status,
   }) async {
     if (currentUid == null) throw Exception('Not authenticated');
+    final normalizedStatus = status.trim().toLowerCase();
+    const allowedStatuses = {
+      'confirmed',
+      'completed',
+      'cancelled',
+      'awaiting_customer_confirmation',
+    };
+    if (!allowedStatuses.contains(normalizedStatus)) {
+      throw Exception('Invalid booking status: $status');
+    }
+
+    final booking = await _supabase
+        .from('bookings')
+        .select('providerId, customerId')
+        .eq('id', bookingId)
+        .maybeSingle();
+    if (booking == null) throw Exception('Booking not found');
+    if ((booking['providerId'] ?? '').toString() != currentUid) {
+      throw Exception('Unauthorized');
+    }
+
     final updateData = {
-      'status': status.trim().toLowerCase(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
-    if (status == 'completed') {
-      updateData['paymentStatus'] = 'paid';
+
+    // Provider "completed" means "waiting for customer completion confirmation".
+    if (normalizedStatus == 'completed') {
+      updateData['status'] = 'awaiting_customer_confirmation';
+      updateData['paymentStatus'] = 'pending_customer_confirmation';
+    } else {
+      updateData['status'] = normalizedStatus;
     }
+
     await _supabase.from('bookings').update(updateData).eq('id', bookingId);
+
+    final customerId = (booking['customerId'] ?? '').toString();
+    if (customerId.isNotEmpty) {
+      if (normalizedStatus == 'completed') {
+        await createNotification(
+          userId: customerId,
+          title: 'Service Marked Completed',
+          message:
+              'Your provider marked the service as completed. Please confirm and pay or report an issue.',
+          type: 'booking',
+          data: {'bookingId': bookingId},
+        );
+      } else if (normalizedStatus == 'confirmed') {
+        await createNotification(
+          userId: customerId,
+          title: 'Booking Confirmed',
+          message: 'Your provider has confirmed your booking.',
+          type: 'booking',
+          data: {'bookingId': bookingId},
+        );
+      }
+    }
   }
 
   // ---- NEW: COMPLETE TASK & PAYMENTS logic ----
   Future<void> confirmTaskCompleted(String bookingId) async {
-    if (currentUid == null) throw Exception("Not logged in");
+    if (currentUid == null) throw Exception('Not logged in');
 
     final booking = await _supabase
         .from('bookings')
         .select()
         .eq('id', bookingId)
         .maybeSingle();
-    if (booking == null) throw Exception("Booking not found");
+    if (booking == null) throw Exception('Booking not found');
 
-    final providerId = booking['providerId'];
-    final amount = (booking['estimatedAmount'] as num).toDouble();
+    final customerId = (booking['customerId'] ?? '').toString();
+    if (customerId != currentUid) {
+      throw Exception('Only the booking customer can confirm completion');
+    }
 
-    // Perform Deduction & Escrow Transfer (simulating transaction)
-    await topUpWallet(
-      amount: amount,
-      method: 'booking_revenue',
-      currency: 'UGX',
-      overrideUserId: providerId,
-    );
+    final statusLower = (booking['status'] ?? '').toString().toLowerCase();
+    if (statusLower != 'confirmed' &&
+        statusLower != 'awaiting_customer_confirmation') {
+      throw Exception('Booking is not ready for customer completion');
+    }
 
-    // Wait, the customer's wallet must be deducted.
-    await _supabase.rpc(
-      'deduct_wallet',
-      params: {'uid': currentUid!, 'deduct_amount': amount},
-    );
-    // Wait, Supabase doesn't have this RPC by default. Let's just do an update query here.
+    final providerId = (booking['providerId'] ?? '').toString();
+    if (providerId.isEmpty) throw Exception('Missing provider');
+
+    final amount = (booking['estimatedAmount'] as num?)?.toDouble() ?? 0.0;
+    if (amount <= 0) throw Exception('Invalid booking amount');
+
+    await ensureWalletExists(currentUid);
+    await ensureWalletExists(providerId);
 
     final customerWallet = await _supabase
         .from('wallets')
         .select('balance')
         .eq('userId', currentUid!)
         .maybeSingle();
-    final newBal = (customerWallet?['balance'] ?? 0) - amount;
+    final customerBalance =
+        (customerWallet?['balance'] as num?)?.toDouble() ?? 0.0;
+    if (customerBalance < amount) {
+      throw Exception('Insufficient wallet balance');
+    }
+
+    final providerWallet = await _supabase
+        .from('wallets')
+        .select('balance')
+        .eq('userId', providerId)
+        .maybeSingle();
+    final providerBalance =
+        (providerWallet?['balance'] as num?)?.toDouble() ?? 0.0;
+
     await _supabase
         .from('wallets')
-        .update({'balance': newBal})
+        .update({'balance': customerBalance - amount})
         .eq('userId', currentUid!);
 
-    // Log the transaction for customer
+    await _supabase
+        .from('wallets')
+        .update({'balance': providerBalance + amount})
+        .eq('userId', providerId);
+
     await _supabase.from('wallet_transactions').insert({
-      'userId': currentUid,
+      'userId': currentUid!,
       'type': 'debit',
       'amount': amount,
-      'description': 'Payment for Booking',
+      'currency': (booking['currency'] ?? 'UGX').toString(),
+      'method': 'service_payment',
+      'description': 'Payment for completed booking',
+    });
+
+    await _supabase.from('wallet_transactions').insert({
+      'userId': providerId,
+      'type': 'credit',
+      'amount': amount,
+      'currency': (booking['currency'] ?? 'UGX').toString(),
+      'method': 'service_payment',
+      'description': 'Received payment for completed booking',
+    });
+
+    await _supabase.from('payments').insert({
+      'userId': currentUid!,
+      'providerId': providerId,
+      'bookingId': bookingId,
+      'amount': amount,
+      'currency': (booking['currency'] ?? 'UGX').toString(),
+      'status': 'completed',
+      'type': 'service_payment',
+      'method': 'wallet_transfer',
+      'reference': 'booking-$bookingId',
     });
 
     await _supabase
@@ -376,20 +466,54 @@ Timestamp? _parseTimestamp(dynamic val) {
           'paidAmount': amount,
           'customerConfirmation': 'confirmed',
           'customerConfirmedAt': FieldValue.serverTimestamp(),
+          'completedAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         })
         .eq('id', bookingId);
+
+    await createNotification(
+      userId: providerId,
+      title: 'Payment Received',
+      message: 'Customer confirmed completion and paid for the service.',
+      type: 'payment',
+      data: {'bookingId': bookingId, 'amount': amount},
+    );
   }
 
   Future<void> reportTaskDispute(String bookingId, String reason) async {
+    if (currentUid == null) throw Exception('Not logged in');
+    final booking = await _supabase
+        .from('bookings')
+        .select('customerId, providerId')
+        .eq('id', bookingId)
+        .maybeSingle();
+    if (booking == null) throw Exception('Booking not found');
+    if ((booking['customerId'] ?? '').toString() != currentUid) {
+      throw Exception('Only the booking customer can report an issue');
+    }
+
     await _supabase
         .from('bookings')
         .update({
-          'status': 'disputed',
-          'uncompletedReason': reason,
+          'status': 'issue_reported',
+          'paymentStatus': 'on_hold',
+          'customerConfirmation': 'not_completed',
+          'customerConfirmedAt': FieldValue.serverTimestamp(),
+          'uncompletedReason': reason.trim(),
           'updatedAt': FieldValue.serverTimestamp(),
         })
         .eq('id', bookingId);
+
+    final providerId = (booking['providerId'] ?? '').toString();
+    if (providerId.isNotEmpty) {
+      await createNotification(
+        userId: providerId,
+        title: 'Service Issue Reported',
+        message: 'Customer reported that the job was not completed.',
+        type: 'booking_issue',
+        data: {'bookingId': bookingId, 'reason': reason.trim()},
+      );
+    }
   }
 
   Future<Map<String, dynamic>> getAdminReportSummary() async {
@@ -923,6 +1047,49 @@ Timestamp? _parseTimestamp(dynamic val) {
         });
   }
 
+  Future<Map<String, dynamic>?> getProviderApplicationData() async {
+    if (currentUid == null) return null;
+    return _supabase
+        .from('provider_applications')
+        .select()
+        .eq('userId', currentUid!)
+        .maybeSingle();
+  }
+
+  Future<void> updateProviderProfile({
+    required String name,
+    required String phone,
+    required String specialization,
+    required String description,
+    required String city,
+    required String address,
+    required String hourlyRate,
+  }) async {
+    if (currentUid == null) throw Exception('Not authenticated');
+
+    await _supabase
+        .from('users')
+        .update({
+          'name': name.trim(),
+          'phone': phone.trim(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .eq('id', currentUid!);
+
+    await _supabase
+        .from('provider_applications')
+        .update({
+          'phonenumber': phone.trim(),
+          'specialization': specialization.trim(),
+          'description': description.trim(),
+          'city': city.trim(),
+          'address': address.trim(),
+          'hourlyRate': hourlyRate.trim(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .eq('userId', currentUid!);
+  }
+
   Future<void> addProviderBusinessImage(String url) async {
     if (currentUid == null) throw Exception('Not authenticated');
     final app = await _supabase
@@ -1081,15 +1248,11 @@ Timestamp? _parseTimestamp(dynamic val) {
     required bool isCompleted,
     String? uncompletedReason,
   }) async {
-    await _supabase
-        .from('bookings')
-        .update({
-          'status': isCompleted ? 'completed' : 'issue_reported',
-          'completedAt': isCompleted ? DateTime.now().toIso8601String() : null,
-          'uncompletedReason': uncompletedReason,
-          'updatedAt': DateTime.now().toIso8601String(),
-        })
-        .eq('id', bookingId);
+    if (isCompleted) {
+      await confirmTaskCompleted(bookingId);
+      return;
+    }
+    await reportTaskDispute(bookingId, uncompletedReason ?? '');
   }
 
   Future<void> processServicePayment({
@@ -1097,53 +1260,8 @@ Timestamp? _parseTimestamp(dynamic val) {
     required String providerId,
     required double amount,
   }) async {
-    // Update booking payment status
-    await _supabase
-        .from('bookings')
-        .update({
-          'paymentStatus': 'paid',
-          'updatedAt': DateTime.now().toIso8601String(),
-        })
-        .eq('id', bookingId);
-
-    // Add to provider's wallet
-    final wallet = await _supabase
-        .from('wallets')
-        .select('balance')
-        .eq('userId', providerId)
-        .maybeSingle();
-    final currentBalance = (wallet?['balance'] as num?)?.toDouble() ?? 0.0;
-    final newBalance = currentBalance + amount;
-
-    if (wallet != null) {
-      await _supabase
-          .from('wallets')
-          .update({'balance': newBalance})
-          .eq('userId', providerId);
-    } else {
-      await _supabase.from('wallets').insert({
-        'userId': providerId,
-        'balance': amount,
-      });
-    }
-
-    // Record transaction
-    await _supabase.from('wallet_transactions').insert({
-      'userId': providerId,
-      'type': 'credit',
-      'amount': amount,
-      'method': 'service_payment',
-      'description': 'Payment for completed service',
-    });
-
-    // Create payment record
-    await _supabase.from('payments').insert({
-      'bookingId': bookingId,
-      'userId': providerId,
-      'amount': amount,
-      'status': 'completed',
-      'type': 'service_payment',
-    });
+    // Keep legacy API surface but route to unified completion+payment flow.
+    await confirmTaskCompleted(bookingId);
   }
 
   Future<void> submitReview({
@@ -1154,20 +1272,37 @@ Timestamp? _parseTimestamp(dynamic val) {
     final currentUid = Supabase.instance.client.auth.currentUser?.id;
     if (currentUid == null) throw 'User not authenticated';
 
-    // Get booking details
     final booking = await _supabase
         .from('bookings')
-        .select('providerId')
+        .select('providerId, status')
         .eq('id', bookingId)
         .single();
+    final status = (booking['status'] ?? '').toString().toLowerCase();
+    if (status != 'completed') {
+      throw Exception('You can only review completed bookings');
+    }
 
-    await _supabase.from('reviews').insert({
+    final normalizedRating = rating.clamp(1, 5).toDouble();
+    final existing = await _supabase
+        .from('reviews')
+        .select('id')
+        .eq('bookingId', bookingId)
+        .eq('customerId', currentUid)
+        .maybeSingle();
+
+    final payload = {
       'bookingId': bookingId,
       'customerId': currentUid,
       'providerId': booking['providerId'],
-      'rating': rating,
-      'comment': comment,
-      'reviewedAt': DateTime.now().toIso8601String(),
-    });
+      'rating': normalizedRating,
+      'comment': comment.trim(),
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+
+    if (existing != null && existing['id'] != null) {
+      await _supabase.from('reviews').update(payload).eq('id', existing['id']);
+    } else {
+      await _supabase.from('reviews').insert(payload);
+    }
   }
 }

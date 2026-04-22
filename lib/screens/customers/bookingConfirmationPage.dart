@@ -86,19 +86,10 @@ class _BookingConfirmationPageState extends State<BookingConfirmationPage> {
     setState(() => _isProcessing = true);
 
     try {
-      await _service.processServicePayment(
+      await _service.confirmBookingCompletion(
         bookingId: widget.bookingId,
-        providerId: _booking!['providerId'],
-        amount: _amount,
+        isCompleted: true,
       );
-
-      await _supabase
-          .from('bookings')
-          .update({
-            'status': 'paid',
-            'updatedAt': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', widget.bookingId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

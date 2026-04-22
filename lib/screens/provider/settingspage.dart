@@ -1,6 +1,5 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:saidia_app/services/firestore_services.dart';
 import 'package:flutter/material.dart';
+import 'package:saidia_app/screens/provider/providerEditProfilePage.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -37,7 +36,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 Icons.person_outline,
                 'Personal Information',
                 'Update your name, phone, and email',
-                () {},
+                () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ProviderEditProfilePage(),
+                    ),
+                  );
+                },
               ),
               _settingsItem(
                 Icons.lock_outline,

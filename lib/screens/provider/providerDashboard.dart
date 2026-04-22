@@ -9,6 +9,7 @@ import 'package:saidia_app/screens/provider/messagesPage.dart';
 import 'package:saidia_app/screens/provider/reviewspage.dart';
 import 'package:saidia_app/screens/provider/analyticspage.dart';
 import 'package:saidia_app/screens/provider/portfolioPage.dart';
+import 'package:saidia_app/screens/provider/providerEditProfilePage.dart';
 import 'package:saidia_app/screens/provider/settingspage.dart';
 import 'package:saidia_app/screens/provider/helppage.dart';
 import 'package:saidia_app/screens/provider/notificationspage.dart';
@@ -246,17 +247,31 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 );
               }
 
-              final data = snapshot.data!.data() as Map<String, dynamic>?;
-              final name = data?['specialization'] ?? 'Provider';
-              final category = data?['serviceCategory'] ?? 'Service';
-              final image = data?['imageUrl'] ?? '';
-              final rawRate = data?['hourlyRate'];
+              final providerData = snapshot.data!.data() as Map<String, dynamic>?;
+              final category = providerData?['serviceCategory'] ?? 'Service';
+              final image = providerData?['imageUrl'] ?? '';
+              final rawRate = providerData?['hourlyRate'];
               final rate = rawRate is num
                   ? rawRate.toDouble()
                   : double.tryParse(rawRate?.toString() ?? '0') ?? 0.0;
-              final rating = (data?['rating'] as num?)?.toDouble() ?? 0.0;
+              final rating = (providerData?['rating'] as num?)?.toDouble() ?? 0.0;
 
-              return _buildDrawerHeader(name, category, image, rate, rating);
+              return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: _service.getUserStream(),
+                builder: (context, userSnapshot) {
+                  final userData = userSnapshot.data?.data();
+                  final userName = (userData?['name']?.toString().trim().isNotEmpty ?? false)
+                      ? userData!['name'].toString().trim()
+                      : 'Provider';
+                  return _buildDrawerHeader(
+                    userName,
+                    category,
+                    image,
+                    rate,
+                    rating,
+                  );
+                },
+              );
             },
           ),
 
@@ -839,7 +854,27 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               return Column(
                 children: reviews.take(2).map((review) {
                   final data = review.data() as Map<String, dynamic>;
-                  return _reviewCard(data);
+                  final customerId = data['customerId']?.toString();
+                  if (customerId == null || customerId.isEmpty) {
+                    return _reviewCard(data, customerName: 'Customer');
+                  }
+
+                  return FutureBuilder<Map<String, dynamic>?>(
+                    future: _supabase
+                        .from('users')
+                        .select('name')
+                        .eq('id', customerId)
+                        .maybeSingle(),
+                    builder: (context, userSnapshot) {
+                      final fetchedName =
+                          userSnapshot.data?['name']?.toString().trim();
+                      final customerName =
+                          (fetchedName != null && fetchedName.isNotEmpty)
+                          ? fetchedName
+                          : 'Customer';
+                      return _reviewCard(data, customerName: customerName);
+                    },
+                  );
                 }).toList(),
               );
             },
@@ -997,7 +1032,28 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
     );
   }
 
-  Widget _reviewCard(Map<String, dynamic> data) {
+  Widget _reviewCard(
+    Map<String, dynamic> data, {
+    required String customerName,
+  }) {
+    final reviewText = ((data['comment'] ?? data['review'] ?? data['message'])
+                ?.toString()
+                .trim() ??
+            '')
+        .trim();
+
+    DateTime? reviewDate;
+    final rawDate = data['createdAt'] ?? data['timestamp'] ?? data['reviewedAt'];
+    if (rawDate is Timestamp) {
+      reviewDate = rawDate.toDate();
+    } else if (rawDate is DateTime) {
+      reviewDate = rawDate;
+    } else if (rawDate is String) {
+      try {
+        reviewDate = DateTime.parse(rawDate);
+      } catch (_) {}
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       padding: EdgeInsets.all(16),
@@ -1028,7 +1084,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      data['customerName'] ?? 'Anonymous',
+                      customerName,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -1054,14 +1110,14 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           ),
           SizedBox(height: 12),
           Text(
-            data['comment'] ?? '',
+            reviewText.isEmpty ? 'No written review provided.' : reviewText,
             style: TextStyle(fontSize: 14, color: Colors.grey.shade800),
           ),
           SizedBox(height: 8),
           Text(
-            DateFormat(
-              'dd MMM yyyy',
-            ).format((data['timestamp'] as Timestamp).toDate()),
+            reviewDate == null
+                ? '-'
+                : DateFormat('dd MMM yyyy').format(reviewDate),
             style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
           ),
         ],
@@ -1313,7 +1369,9 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                           ),
                         ),
                         child: Text(
-                          data['status'] == 'pending' ? 'Confirm' : 'Complete',
+                          data['status'] == 'pending'
+                              ? 'Confirm'
+                              : 'Request Customer Confirmation',
                           style: TextStyle(
                             color: data['status'] == 'pending'
                                 ? Colors.green
@@ -1498,8 +1556,13 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {
-                        // Edit profile
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ProviderEditProfilePage(),
+                          ),
+                        );
                       },
                       icon: Icon(Icons.edit),
                       label: Text('Edit Profile'),
@@ -1735,7 +1798,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       child: Text(
                         data['status'] == 'pending'
                             ? 'Confirm Booking'
-                            : 'Mark Completed',
+                            : 'Request Customer Confirmation',
                       ),
                     ),
                   ),
@@ -1817,9 +1880,9 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
         SnackBar(
           content: Text(
             status == 'confirmed'
-                ? 'Booking confirmed and earning added to wallet'
+                ? 'Booking confirmed successfully'
                 : status == 'completed'
-                ? 'Booking marked as completed'
+                ? 'Customer has been asked to confirm completion and pay'
                 : 'Booking $status successfully',
           ),
           backgroundColor: status == 'cancelled' ? Colors.red : Colors.green,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:saidia_app/screens/customers/bookingPage.dart';
 import 'package:saidia_app/screens/customers/chatPage.dart';
 import 'package:saidia_app/services/firestore_services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:smooth_star_rating_null_safety/smooth_star_rating_null_safety.dart';
@@ -24,11 +25,33 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   final FirestoreService _service = FirestoreService();
   bool _isSaved = false;
   bool _isSaving = false;
+  String? _providerName;
 
   @override
   void initState() {
     super.initState();
     _loadSavedState();
+    _loadProviderName();
+  }
+
+  Future<void> _loadProviderName() async {
+    final provided = widget.data['providerName']?.toString().trim();
+    if (provided != null && provided.isNotEmpty) {
+      setState(() => _providerName = provided);
+      return;
+    }
+    try {
+      final row = await Supabase.instance.client
+          .from('users')
+          .select('name')
+          .eq('id', widget.providerId)
+          .maybeSingle();
+      if (!mounted) return;
+      final name = row?['name']?.toString().trim();
+      setState(() => _providerName = (name != null && name.isNotEmpty) ? name : 'Service Provider');
+    } catch (_) {
+      if (mounted) setState(() => _providerName = 'Service Provider');
+    }
   }
 
   Future<void> _loadSavedState() async {
@@ -85,6 +108,10 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
   @override
   Widget build(BuildContext context) {
     final String category = widget.data['serviceCategory'] ?? 'Service';
+    final String specialization =
+        widget.data['specialization']?.toString() ?? 'Service Provider';
+    final String providerName =
+        (_providerName?.trim().isNotEmpty ?? false) ? _providerName!.trim() : 'Service Provider';
     final List<String> businessImages =
         (widget.data['businessImages'] as List<dynamic>?)?.cast<String>() ?? [];
     final String profileImage = widget.data['imageUrl'] ?? '';
@@ -179,8 +206,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  widget.data['specialization'] ??
-                                      'Service Provider',
+                                  providerName,
                                   style: const TextStyle(
                                     fontSize: 20,
                                     fontWeight: FontWeight.bold,
@@ -188,7 +214,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  category,
+                                  '$specialization • $category',
                                   style: TextStyle(
                                     fontSize: 16,
                                     color: Colors.grey.shade600,
@@ -264,8 +290,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                               MaterialPageRoute(
                                 builder: (_) => BookingPage(
                                   providerId: widget.providerId,
-                                  providerName: widget.data['specialization']
-                                      ?.toString(),
+                                  providerName: '$providerName • $specialization',
                                 ),
                               ),
                             );
@@ -325,15 +350,15 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                         label: 'Availability',
                         value: 'Mon - Fri',
                       ),
-                      InkWell(
-                        onTap: () => _launchPhone(phone),
-                        child: _buildDetailItem(
-                          icon: Icons.phone,
-                          label: 'Contact',
-                          value: phone,
-                          color: Colors.green,
-                        ),
-                      ),
+                      // InkWell(
+                      //   onTap: () => _launchPhone(phone),
+                      //   child: _buildDetailItem(
+                      //     icon: Icons.phone,
+                      //     label: 'Contact',
+                      //     value: phone,
+                      //     color: Colors.green,
+                      //   ),
+                      // ),
                     ],
                   ),
                   const SizedBox(height: 32),
@@ -347,8 +372,8 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                               MaterialPageRoute(
                                 builder: (_) => ChatPage(
                                   providerId: widget.providerId,
-                                  providerName: widget.data['specialization']
-                                      ?.toString(),
+                                  providerName: providerName,
+                                  providerSpecialization: specialization,
                                 ),
                               ),
                             );
@@ -357,18 +382,18 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
                           label: const Text('Chat Now'),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _launchPhone(phone),
-                          icon: const Icon(Icons.call),
-                          label: const Text('Call Now'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ),
+                      // const SizedBox(width: 16),
+                      // Expanded(
+                      //   child: ElevatedButton.icon(
+                      //     onPressed: () => _launchPhone(phone),
+                      //     icon: const Icon(Icons.call),
+                      //     label: const Text('Call Now'),
+                      //     style: ElevatedButton.styleFrom(
+                      //       backgroundColor: Colors.green,
+                      //       foregroundColor: Colors.white,
+                      //     ),
+                      //   ),
+                      // ),
                     ],
                   ),
                   const SizedBox(height: 40),

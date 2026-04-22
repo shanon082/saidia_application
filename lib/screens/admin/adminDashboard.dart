@@ -55,6 +55,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case 'confirmed':
       case 'success':
         return Colors.green;
+      case 'issue_reported':
+      case 'disputed':
+        return Colors.red;
       case 'rejected':
       case 'cancelled':
       case 'failed':
@@ -460,7 +463,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }) async {
     String selectedStatus = currentStatus.toLowerCase();
     final noteController = TextEditingController();
-    const statuses = ['pending', 'confirmed', 'completed', 'cancelled'];
+    const statuses = [
+      'pending',
+      'confirmed',
+      'awaiting_customer_confirmation',
+      'completed',
+      'issue_reported',
+      'cancelled',
+    ];
 
     if (!statuses.contains(selectedStatus)) {
       selectedStatus = 'pending';
@@ -828,6 +838,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     Text('Customer: ${d['customerId'] ?? 'N/A'}'),
                     Text('Provider: ${d['providerId'] ?? 'N/A'}'),
                     Text('Amount: UGX ${amount.toStringAsFixed(0)}'),
+                    Text(
+                      'Customer confirmation: ${d['customerConfirmation']?.toString() ?? 'pending'}',
+                    ),
+                    if ((d['uncompletedReason'] ?? '').toString().trim().isNotEmpty)
+                      Text(
+                        'Issue reason: ${d['uncompletedReason']}',
+                        style: const TextStyle(color: Colors.red),
+                      ),
                     Text('Created: ${_formatDate(d['createdAt'])}'),
                   ],
                 ),

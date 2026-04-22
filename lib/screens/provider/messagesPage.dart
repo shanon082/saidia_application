@@ -66,6 +66,20 @@ class _MessagesPageState extends State<MessagesPage> {
     return DateFormat('HH:mm').format(dateTime);
   }
 
+  Timestamp? _asTimestamp(dynamic ts) {
+    if (ts == null) return null;
+    if (ts is Timestamp) return ts;
+    if (ts is DateTime) return Timestamp(ts);
+    if (ts is String) {
+      try {
+        return Timestamp(DateTime.parse(ts));
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   Future<List<_ConversationSummary>> _loadConversationSummaries({
     required String uid,
     required Set<String> chatIds,
@@ -80,16 +94,6 @@ class _MessagesPageState extends State<MessagesPage> {
         orElse: () => chatId,
       );
 
-      final messageSnap = await _supabase
-          .from('messages')
-          .select()
-          .eq('chatId', chatId)
-          .order('timestamp', ascending: false)
-          .limit(1);
-
-      if (messageSnap.isEmpty) return null;
-
-      final msg = messageSnap.first;
       final chatMeta = chatDocMap[chatId];
       final participants =
           (chatMeta?['participants'] as List?)?.cast<String>() ?? [];
@@ -103,12 +107,33 @@ class _MessagesPageState extends State<MessagesPage> {
           ? userNameRaw
           : other;
 
+      String lastMessage = (chatMeta?['lastMessage']?.toString() ?? '').trim();
+      Timestamp? lastMessageTime = _asTimestamp(chatMeta?['lastMessageTime']);
+
+      if (lastMessage.isEmpty || lastMessageTime == null) {
+        try {
+          final messageSnap = await _supabase
+              .from('messages')
+              .select()
+              .eq('chatId', chatId)
+              .order('createdAt', ascending: false)
+              .limit(1);
+          if (messageSnap.isNotEmpty) {
+            final msg = messageSnap.first;
+            lastMessage = (msg['message']?.toString() ?? '').trim();
+            lastMessageTime = _asTimestamp(msg['timestamp'] ?? msg['createdAt']);
+          }
+        } catch (_) {
+          // Keep chat metadata fallback if direct message query fails on column differences.
+        }
+      }
+
       return _ConversationSummary(
         chatId: chatId,
         otherUserId: other,
         otherUserName: otherName,
-        lastMessage: (msg['message']?.toString() ?? '').trim(),
-        lastMessageTime: msg['timestamp'] as Timestamp?,
+        lastMessage: lastMessage,
+        lastMessageTime: lastMessageTime,
       );
     }).toList();
 

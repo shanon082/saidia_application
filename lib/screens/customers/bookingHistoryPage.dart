@@ -11,7 +11,11 @@ class BookingHistoryPage extends StatelessWidget {
     switch (status) {
       case 'confirmed':
         return Colors.green;
+      case 'awaiting_customer_confirmation':
+        return Colors.blue;
       case 'cancelled':
+        return Colors.red;
+      case 'issue_reported':
         return Colors.red;
       case 'completed':
         return Colors.teal;
@@ -197,8 +201,7 @@ class BookingHistoryPage extends StatelessWidget {
               final bookingId = bookings[index].id;
               final providerId = data['providerId']?.toString() ?? '';
               final statusLower = status.toLowerCase();
-              final canReview = providerId.isNotEmpty &&
-                  (statusLower == 'completed' || statusLower == 'confirmed');
+              final canReview = providerId.isNotEmpty && statusLower == 'completed';
 
               return FutureBuilder<QueryDocumentSnapshot<Map<String, dynamic>>?>(
                 future: canReview
@@ -251,7 +254,8 @@ class BookingHistoryPage extends StatelessWidget {
                             ],
                           ),
                         ),
-                        if (statusLower == 'confirmed')
+                        if (statusLower == 'confirmed' ||
+                            statusLower == 'awaiting_customer_confirmation')
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             child: Row(
@@ -263,7 +267,7 @@ class BookingHistoryPage extends StatelessWidget {
                                         context: context,
                                         builder: (ctx) => AlertDialog(
                                           title: const Text('Confirm Completion?'),
-                                          content: const Text('Are you sure the provider has completed this job? Your wallet will be deducted.'),
+                                          content: const Text('Are you sure the provider has completed this job? Your wallet will be deducted and payment sent to the provider.'),
                                           actions: [
                                             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
                                             ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes')),

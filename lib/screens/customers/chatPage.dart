@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 import 'package:saidia_app/services/firestore_services.dart';
@@ -8,8 +9,14 @@ import 'package:intl/intl.dart';
 class ChatPage extends StatefulWidget {
   final String providerId;
   final String? providerName;
+  final String? providerSpecialization;
 
-  const ChatPage({super.key, required this.providerId, this.providerName});
+  const ChatPage({
+    super.key,
+    required this.providerId,
+    this.providerName,
+    this.providerSpecialization,
+  });
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -21,11 +28,12 @@ class _ChatPageState extends State<ChatPage> {
   final _currentUser = FirestoreService.instance.currentUser;
   final ScrollController _scrollController = ScrollController();
   String? _fetchedName;
+  String? _fetchedSpecialization;
 
   @override
   void initState() {
     super.initState();
-    _fetchUserName();
+    _fetchProviderInfo();
     // Auto-scroll to bottom when messages load
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -34,17 +42,38 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
-  Future<void> _fetchUserName() async {
+  Future<void> _fetchProviderInfo() async {
     if (widget.providerName != null && widget.providerName!.isNotEmpty) {
       _fetchedName = widget.providerName;
-      setState((){});
-      return;
     }
+    if (widget.providerSpecialization != null &&
+        widget.providerSpecialization!.isNotEmpty) {
+      _fetchedSpecialization = widget.providerSpecialization;
+    }
+
     try {
-      final res = await Supabase.instance.client.from('users').select('name').eq('id', widget.providerId).maybeSingle();
-      if (res != null) {
-        setState(() => _fetchedName = res['name']);
-      }
+      final userRes = await Supabase.instance.client
+          .from('users')
+          .select('name')
+          .eq('id', widget.providerId)
+          .maybeSingle();
+      final providerRes = await Supabase.instance.client
+          .from('provider_applications')
+          .select('specialization')
+          .eq('userId', widget.providerId)
+          .maybeSingle();
+
+      if (!mounted) return;
+      setState(() {
+        final name = userRes?['name']?.toString().trim();
+        if (name != null && name.isNotEmpty) {
+          _fetchedName = name;
+        }
+        final spec = providerRes?['specialization']?.toString().trim();
+        if (spec != null && spec.isNotEmpty) {
+          _fetchedSpecialization = spec;
+        }
+      });
     } catch (_) {}
   }
 
@@ -69,7 +98,23 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  String _formatTimestamp(Timestamp timestamp) {
+  Timestamp? _asTimestamp(dynamic ts) {
+    if (ts == null) return null;
+    if (ts is Timestamp) return ts;
+    if (ts is DateTime) return Timestamp(ts);
+    if (ts is String) {
+      try {
+        return Timestamp(DateTime.parse(ts));
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  String _formatTimestamp(dynamic rawTimestamp) {
+    final timestamp = _asTimestamp(rawTimestamp);
+    if (timestamp == null) return '';
     final now = DateTime.now();
     final messageTime = timestamp.toDate();
     
@@ -94,8 +139,8 @@ class _ChatPageState extends State<ChatPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             Text(
-              'Online',
-              style: TextStyle(fontSize: 12, color: Colors.green),
+              _fetchedSpecialization ?? widget.providerSpecialization ?? 'Provider',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
             ),
           ],
         ),
@@ -182,7 +227,9 @@ class _ChatPageState extends State<ChatPage> {
                   itemBuilder: (context, index) {
                     final msgData = messages[index].data() as Map<String, dynamic>;
                     final isMe = msgData['senderId'] == _currentUser?.id;
-                    final timestamp = msgData['timestamp'] as Timestamp?;
+                    final timestamp = _asTimestamp(
+                      msgData['timestamp'] ?? msgData['createdAt'],
+                    );
                     final messageText = msgData['message'] ?? '';
 
                     return Column(
@@ -358,8 +405,12 @@ class _ChatPageState extends State<ChatPage> {
     final currentMsg = messages[index].data() as Map<String, dynamic>;
     final previousMsg = messages[index - 1].data() as Map<String, dynamic>;
     
-    final currentTimestamp = currentMsg['timestamp'] as Timestamp?;
-    final previousTimestamp = previousMsg['timestamp'] as Timestamp?;
+    final currentTimestamp = _asTimestamp(
+      currentMsg['timestamp'] ?? currentMsg['createdAt'],
+    );
+    final previousTimestamp = _asTimestamp(
+      previousMsg['timestamp'] ?? previousMsg['createdAt'],
+    );
     
     if (currentTimestamp == null || previousTimestamp == null) return false;
     

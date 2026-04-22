@@ -22,6 +22,33 @@ class _ServicesListPageState extends State<ServicesListPage> {
     return double.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
+  Future<Map<String, String>> _fetchProviderNames(
+    List<Map<String, dynamic>> providers,
+  ) async {
+    final ids = providers
+        .map((p) => p['userId']?.toString())
+        .where((id) => id != null && id.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+    if (ids.isEmpty) return {};
+
+    final rows = await Supabase.instance.client
+        .from('users')
+        .select('id, name')
+        .inFilter('id', ids);
+
+    final map = <String, String>{};
+    for (final row in rows) {
+      final id = row['id']?.toString();
+      final name = row['name']?.toString().trim();
+      if (id != null && id.isNotEmpty && name != null && name.isNotEmpty) {
+        map[id] = name;
+      }
+    }
+    return map;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -273,42 +300,52 @@ class _ServicesListPageState extends State<ServicesListPage> {
           }
         });
 
-        return ListView.builder(
-          padding: EdgeInsets.all(16),
-          itemCount: providers.length,
-          itemBuilder: (context, index) {
-            final data = providers[index];
-            final providerId = data['userId'];
-            final businessImages = (data['businessImages'] as List?)?.cast<String>() ?? [];
-            final profileImage = data['imageUrl'] ?? '';
-            final rating = _toDouble(data['rating']);
-            final reviewCount = (data['reviewCount'] as num?)?.toInt() ?? 0;
+        return FutureBuilder<Map<String, String>>(
+          future: _fetchProviderNames(providers),
+          builder: (context, namesSnapshot) {
+            final names = namesSnapshot.data ?? {};
+            return ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: providers.length,
+              itemBuilder: (context, index) {
+                final data = providers[index];
+                final providerId = data['userId']?.toString() ?? '';
+                final businessImages = (data['businessImages'] as List?)?.cast<String>() ?? [];
+                final profileImage = data['imageUrl'] ?? '';
+                final rating = _toDouble(data['rating']);
+                final reviewCount = (data['reviewCount'] as num?)?.toInt() ?? 0;
+                final providerName = names[providerId] ?? 'Service Provider';
+                final specialization = data['specialization']?.toString() ?? 'General Service';
+                final dataWithName = {...data, 'providerName': providerName};
 
-            return GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ServiceDetailPage(providerId: providerId, data: data),
-                  ),
-                );
-              },
-              child: Container(
-                margin: EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ServiceDetailPage(
+                          providerId: providerId,
+                          data: dataWithName,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    margin: EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                     // Service Image
                     Container(
                       height: 180,
@@ -359,7 +396,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      data['specialization'] ?? 'Service Provider',
+                                      providerName,
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
@@ -369,7 +406,7 @@ class _ServicesListPageState extends State<ServicesListPage> {
                                     ),
                                     SizedBox(height: 2),
                                     Text(
-                                      data['serviceCategory'] ?? 'General Service',
+                                      '$specialization - ${data['serviceCategory'] ?? 'General Service'}',
                                       style: TextStyle(
                                         fontSize: 14,
                                         color: Colors.grey.shade600,
@@ -487,9 +524,11 @@ class _ServicesListPageState extends State<ServicesListPage> {
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             );
           },
         );
