@@ -144,22 +144,25 @@ Timestamp? _parseTimestamp(dynamic val) {
   }
 
   Future<void> createUserProfile({
-    required String name,
-    required String email,
+    required String username,
+    String? email,
     required String phone,
     String? uid,
   }) async {
     final targetUid = uid ?? currentUid;
     if (targetUid == null) throw Exception('User not authenticated');
     try {
-      await _supabase.from('users').upsert({
+      final profileData = <String, dynamic>{
         'id': targetUid,
-        'name': name.trim(),
-        'email': email.trim().toLowerCase(),
+        'username': username.trim(),
         'phone': phone.trim(),
         'role': 'customer',
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      };
+      if (email != null && email.trim().isNotEmpty) {
+        profileData['email'] = email.trim().toLowerCase();
+      }
+      await _supabase.from('users').upsert(profileData);
       await ensureWalletExists(targetUid);
     } catch (e) {
       rethrow;
@@ -167,6 +170,7 @@ Timestamp? _parseTimestamp(dynamic val) {
   }
 
   Future<bool> isEmailTaken(String email) async {
+    if (email.trim().isEmpty) return false;
     final res = await _supabase
         .from('users')
         .select('id')
@@ -182,6 +186,25 @@ Timestamp? _parseTimestamp(dynamic val) {
         .eq('phone', phone.trim())
         .limit(1);
     return res.isNotEmpty;
+  }
+
+  Future<bool> isUsernameTaken(String username, {String? excludeUserId}) async {
+    if (username.trim().isEmpty) return false;
+    final res = await _supabase
+        .from('users')
+        .select('id')
+        .eq('username', username.trim())
+        .limit(excludeUserId == null ? 1 : 20);
+    if (excludeUserId == null) return res.isNotEmpty;
+    return res.any((row) => row['id']?.toString() != excludeUserId);
+  }
+
+  Future<Map<String, dynamic>?> getUserByUsername(String username) async {
+    return await _supabase
+        .from('users')
+        .select()
+        .eq('username', username.trim())
+        .maybeSingle();
   }
 
   Future<void> applyAsProvider() async {
@@ -226,7 +249,7 @@ Timestamp? _parseTimestamp(dynamic val) {
   Future<void> createAdminAccount({
     required String email,
     required String password,
-    required String name,
+    required String username,
     required String phone,
   }) async {
     // This method is kept for future use (e.g., from Edge Functions)
@@ -246,7 +269,7 @@ Timestamp? _parseTimestamp(dynamic val) {
 
     await _supabase.from('users').upsert({
       'id': user.id,
-      'name': name.trim(),
+      'username': username.trim(),
       'email': email.trim().toLowerCase(),
       'phone': phone.trim(),
       'role': 'admin',
@@ -1057,7 +1080,7 @@ Timestamp? _parseTimestamp(dynamic val) {
   }
 
   Future<void> updateProviderProfile({
-    required String name,
+    required String username,
     required String phone,
     required String specialization,
     required String description,
@@ -1070,7 +1093,7 @@ Timestamp? _parseTimestamp(dynamic val) {
     await _supabase
         .from('users')
         .update({
-          'name': name.trim(),
+          'username': username.trim(),
           'phone': phone.trim(),
           'updatedAt': FieldValue.serverTimestamp(),
         })

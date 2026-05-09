@@ -219,7 +219,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
         String userName = 'Customer';
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           final data = snapshot.data!.first;
-          userName = data['name']?.split(' ').first ?? 'Customer';
+          userName = data['username'] ?? 'Customer';
         }
 
         return Padding(
@@ -403,17 +403,16 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
             builder: (context, snapshot) {
               String name = 'User';
               String phone = 'No phone';
-              String email = user?.email ?? 'No email';
               String? profileImageUrl;
 
               if (snapshot.hasData && snapshot.data!.isNotEmpty) {
                 final data = snapshot.data!.first;
-                name = data['name'] ?? 'User';
+                name = data['username'] ?? 'User';
                 phone = data['phone'] ?? 'No phone';
                 profileImageUrl = data['profileImageUrl'];
               }
 
-              return _buildDrawerHeader(name, email, phone, profileImageUrl);
+              return _buildDrawerHeader(name, phone, profileImageUrl);
             },
           ),
           Expanded(
@@ -585,7 +584,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   Widget _buildDrawerHeader(
     String name,
-    String email,
     String phone,
     String? profileImageUrl,
   ) {
@@ -629,7 +627,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               ),
               const SizedBox(height: 6),
               Text(
-                email,
+                'Customer account',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.9),
                   fontSize: 15,

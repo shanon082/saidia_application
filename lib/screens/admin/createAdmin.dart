@@ -67,7 +67,7 @@ class _CreateAdminPageState extends State<CreateAdminPage> {
       // Step 3: Create user profile in 'users' table
       await _dataService.createUserProfile(
         uid: user.id,
-        name: name,
+        username: name,
         email: email,
         phone: phone,
       );

@@ -23,7 +23,6 @@ class ProviderDashboard extends StatefulWidget {
 }
 
 class _ProviderDashboardState extends State<ProviderDashboard> {
-  final _auth = Supabase.instance.client.auth;
   final _supabase = Supabase.instance.client;
   final FirestoreService _service = FirestoreService();
   int _selectedIndex = 0;
@@ -260,8 +259,8 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                 stream: _service.getUserStream(),
                 builder: (context, userSnapshot) {
                   final userData = userSnapshot.data?.data();
-                  final userName = (userData?['name']?.toString().trim().isNotEmpty ?? false)
-                      ? userData!['name'].toString().trim()
+                  final userName = (userData?['username']?.toString().trim().isNotEmpty ?? false)
+                      ? userData!['username'].toString().trim()
                       : 'Provider';
                   return _buildDrawerHeader(
                     userName,
@@ -862,12 +861,12 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                   return FutureBuilder<Map<String, dynamic>?>(
                     future: _supabase
                         .from('users')
-                        .select('name')
+                        .select('username')
                         .eq('id', customerId)
                         .maybeSingle(),
                     builder: (context, userSnapshot) {
                       final fetchedName =
-                          userSnapshot.data?['name']?.toString().trim();
+                          userSnapshot.data?['username']?.toString().trim();
                       final customerName =
                           (fetchedName != null && fetchedName.isNotEmpty)
                           ? fetchedName
@@ -918,6 +917,44 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           ),
         ],
       ),
+    );
+  }
+
+  String _customerFallbackName(Map<String, dynamic> data) {
+    final username = data['customerUsername']?.toString().trim();
+    if (username != null && username.isNotEmpty) return username;
+    final legacyName = data['customerName']?.toString().trim();
+    if (legacyName != null && legacyName.isNotEmpty) return legacyName;
+    return 'Customer';
+  }
+
+  Future<String> _loadCustomerDisplayName(Map<String, dynamic> data) async {
+    final fallback = _customerFallbackName(data);
+    final customerId = data['customerId']?.toString().trim();
+    if (customerId == null || customerId.isEmpty) return fallback;
+    try {
+      final row = await _supabase
+          .from('users')
+          .select('username')
+          .eq('id', customerId)
+          .maybeSingle();
+      final username = row?['username']?.toString().trim();
+      if (username != null && username.isNotEmpty) return username;
+      return fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  Widget _customerNameText(
+    Map<String, dynamic> data, {
+    required TextStyle style,
+  }) {
+    return FutureBuilder<String>(
+      future: _loadCustomerDisplayName(data),
+      builder: (context, snapshot) {
+        return Text(snapshot.data ?? _customerFallbackName(data), style: style);
+      },
     );
   }
 
@@ -989,8 +1026,8 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  data['customerName'] ?? 'Customer',
+                _customerNameText(
+                  data,
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 SizedBox(height: 4),
@@ -1241,8 +1278,8 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          data['customerName'] ?? 'Customer',
+                        _customerNameText(
+                          data,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -1517,17 +1554,40 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                       ),
                     ),
                     SizedBox(height: 16),
+                    FutureBuilder<Map<String, dynamic>?>(
+                      future: _service.getCurrentUserData(),
+                      builder: (context, userSnapshot) {
+                        final userData = userSnapshot.data;
+                        final username =
+                            userData?['username']?.toString().trim().isNotEmpty ==
+                                true
+                            ? userData!['username'].toString().trim()
+                            : 'Provider';
+                        final phone =
+                            userData?['phone']?.toString().trim().isNotEmpty ==
+                                true
+                            ? userData!['phone'].toString().trim()
+                            : (data?['phonenumber']?.toString() ?? 'N/A');
+                        final email =
+                            userData?['email']?.toString().trim() ?? '';
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _profileDetailItem('Username', username),
+                            _profileDetailItem('Phone', phone),
+                            if (email.isNotEmpty)
+                              _profileDetailItem('Email', email),
+                          ],
+                        );
+                      },
+                    ),
                     _profileDetailItem(
                       'Experience',
                       '${data?['experience'] ?? 'N/A'} years',
                     ),
                     _profileDetailItem('City', data?['city'] ?? 'N/A'),
                     _profileDetailItem('Address', data?['address'] ?? 'N/A'),
-                    _profileDetailItem('Phone', data?['phonenumber'] ?? 'N/A'),
-                    _profileDetailItem(
-                      'Email',
-                      _auth.currentUser?.email ?? 'N/A',
-                    ),
                     SizedBox(height: 20),
                     Text(
                       'About',
@@ -1683,8 +1743,8 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        data['customerName'] ?? 'Customer',
+                      _customerNameText(
+                        data,
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,

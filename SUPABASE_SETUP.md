@@ -6,8 +6,8 @@ Run this SQL in Supabase SQL Editor (safe/idempotent where possible) to align wi
 -- 1) Core profile + wallet tables used by signup/login
 create table if not exists public.users (
   id uuid primary key references auth.users(id) on delete cascade,
-  name text not null default '',
-  email text not null unique,
+  username text not null unique,
+  email text unique,
   phone text unique,
   role text not null default 'customer' check (role in ('customer', 'provider', 'admin')),
   "providerStatus" text,

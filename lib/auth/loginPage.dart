@@ -15,7 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final _auth = Supabase.instance.client.auth;
   final _supabase = Supabase.instance.client;
 
-  String _email = '';
+  String _identifier = '';
   String _password = '';
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -31,18 +31,120 @@ class _LoginPageState extends State<LoginPage> {
     return RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
+  String _normalizeIdentifier(String value) {
+    return value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+  }
+
+  Future<Map<String, dynamic>?> _resolveUserByUsername(String input) async {
+    final normalizedInput = _normalizeIdentifier(input);
+    final parts = normalizedInput
+        .split(' ')
+        .where((part) => part.trim().isNotEmpty)
+        .toList();
+
+    // Try exact case-sensitive match first.
+    final exact = await _supabase
+        .from('users')
+        .select('email, phone, username')
+        .eq('username', input.trim())
+        .maybeSingle();
+    if (exact != null) return exact;
+
+    // Finally, do case-insensitive/manual-normalized matching.
+    final usernameCandidates = await _supabase
+        .from('users')
+        .select('email, phone, username')
+        .ilike('username', input.trim())
+        .limit(20);
+    for (final row in usernameCandidates) {
+      final username = _normalizeIdentifier(row['username']?.toString() ?? '');
+      if (username == normalizedInput) {
+        return row;
+      }
+    }
+
+    if (parts.isNotEmpty) {
+      final pattern = '%${parts.join('%')}%';
+      final broadCandidates = await _supabase
+          .from('users')
+          .select('email, phone, username')
+          .ilike('username', pattern)
+          .limit(50);
+      for (final row in broadCandidates) {
+        final username = _normalizeIdentifier(row['username']?.toString() ?? '');
+        if (username == normalizedInput) {
+          return row;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> _resolveLoginIdentifier(String input) async {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+
+    // Preferred path: RPC that can safely resolve username for anon users.
+    try {
+      final rpcRes = await _supabase.rpc(
+        'resolve_login_identifier',
+        params: {'p_identifier': trimmed},
+      );
+      if (rpcRes is Map<String, dynamic>) {
+        return rpcRes;
+      }
+      if (rpcRes is List && rpcRes.isNotEmpty && rpcRes.first is Map<String, dynamic>) {
+        return rpcRes.first as Map<String, dynamic>;
+      }
+    } catch (_) {
+      // Fallback to direct table lookup below (works only if policies allow anon read).
+    }
+
+    return _resolveUserByUsername(trimmed);
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
     _formKey.currentState!.save();
     setState(() => _isLoading = true);
-    final email = _email.trim().toLowerCase();
+    final input = _identifier.trim();
+    String? credentialEmail;
+    String? credentialPhone;
 
     try {
-      print('Attempting login with email: $email');
+      if (_isValidEmail(input)) {
+        credentialEmail = input.toLowerCase();
+      } else {
+        final userByUsername = await _resolveLoginIdentifier(input);
+        if (userByUsername == null) {
+          throw Exception(
+            'Username login is not available for this account right now. Use email login, then enable username lookup on Supabase.',
+          );
+        }
+
+        final resolvedEmail =
+            userByUsername['email']?.toString().trim().toLowerCase() ?? '';
+        final resolvedPhone = userByUsername['phone']?.toString().trim() ?? '';
+        if (resolvedEmail.isNotEmpty) {
+          credentialEmail = resolvedEmail;
+        } else if (resolvedPhone.isNotEmpty) {
+          credentialPhone = resolvedPhone;
+        } else {
+          throw Exception(
+            'Account is missing both email and phone credentials. Please contact support.',
+          );
+        }
+      }
+
+      print(
+        'Attempting login with ${credentialEmail != null ? 'email' : 'phone'}',
+      );
 
       final userCredential = await _auth.signInWithPassword(
-        email: email,
+        email: credentialEmail,
+        phone: credentialPhone,
         password: _password,
       );
       final user = userCredential.user!;
@@ -56,27 +158,32 @@ class _LoginPageState extends State<LoginPage> {
 
       if (userDoc == null) {
         final metadata = user.userMetadata ?? {};
-        final fallbackName = metadata['name']?.toString().trim().isNotEmpty ==
+        final fallbackUsername = metadata['username']?.toString().trim().isNotEmpty ==
                 true
-            ? metadata['name'].toString().trim()
-            : ((user.email ?? 'User').toString().split('@').first);
+            ? metadata['username'].toString().trim()
+            : ((user.email ?? user.phone ?? 'User').toString().split('@').first);
         final String? fallbackPhone =
             metadata['phone']?.toString().trim().isNotEmpty == true
                 ? metadata['phone'].toString().trim()
-                : null;
+                : user.phone?.toString().trim();
         final fallbackEmail = metadata['email']?.toString().trim().isNotEmpty ==
                 true
             ? metadata['email'].toString().trim().toLowerCase()
-            : (user.email ?? email);
+            : (user.email ?? '').toString().trim().toLowerCase();
 
-        await _supabase.from('users').upsert({
+        final upsertData = <String, dynamic>{
           'id': user.id,
-          'name': fallbackName,
-          'email': fallbackEmail,
-          'phone': fallbackPhone,
+          'username': fallbackUsername,
           'role': 'customer',
           'updatedAt': DateTime.now().toUtc().toIso8601String(),
-        });
+        };
+        if (fallbackEmail.isNotEmpty) {
+          upsertData['email'] = fallbackEmail;
+        }
+        if (fallbackPhone != null && fallbackPhone.isNotEmpty) {
+          upsertData['phone'] = fallbackPhone;
+        }
+        await _supabase.from('users').upsert(upsertData);
 
         userDoc = await _supabase
             .from('users')
@@ -95,7 +202,7 @@ class _LoginPageState extends State<LoginPage> {
           ?.toString()
           .trim()
           .toLowerCase();
-      final name = userDoc['name']?.toString() ?? 'User';
+      final username = userDoc['username']?.toString() ?? 'User';
 
       print('User role: $role, Provider status: $providerStatus');
 
@@ -135,7 +242,7 @@ class _LoginPageState extends State<LoginPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Welcome back, $name!'),
+            content: Text('Welcome back, $username!'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -148,7 +255,7 @@ class _LoginPageState extends State<LoginPage> {
       final lower = e.message.toLowerCase();
 
       if (lower.contains('invalid login credentials')) {
-        errorMessage = 'Invalid email or password';
+        errorMessage = 'Invalid username/email or password';
       } else if (lower.contains('email not confirmed')) {
         errorMessage =
             'Email not verified yet. Verify your code during signup, then login.';
@@ -186,11 +293,11 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _resetPassword() async {
-    final input = _email.trim();
+    final input = _identifier.trim();
     if (input.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter your email first'),
+          content: Text('Please enter your username or email first'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -311,10 +418,10 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 32),
                     TextFormField(
                       decoration: InputDecoration(
-                        labelText: 'Email Address',
+                        labelText: 'Username or Email',
                         labelStyle: const TextStyle(color: Colors.grey),
                         prefixIcon: const Icon(
-                          Icons.email_outlined,
+                          Icons.person_outline,
                           color: Color(0xFF6A11CB),
                         ),
                         border: OutlineInputBorder(
@@ -346,19 +453,15 @@ class _LoginPageState extends State<LoginPage> {
                         filled: true,
                         fillColor: Colors.grey.shade50,
                       ),
-                      keyboardType: TextInputType.emailAddress,
+                      keyboardType: TextInputType.text,
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) {
-                          return 'Email is required';
-                        }
-                        final value = v.trim();
-                        if (!_isValidEmail(value)) {
-                          return 'Enter a valid email address';
+                          return 'Username or email is required';
                         }
                         return null;
                       },
-                      onSaved: (v) => _email = v!.trim(),
-                      onChanged: (v) => _email = v.trim(),
+                      onSaved: (v) => _identifier = v!.trim(),
+                      onChanged: (v) => _identifier = v.trim(),
                     ),
                     const SizedBox(height: 15),
                     TextFormField(

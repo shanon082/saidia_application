@@ -40,11 +40,11 @@ class _ProviderChatPageState extends State<ProviderChatPage> {
     try {
       final res = await Supabase.instance.client
           .from('users')
-          .select('name')
+          .select('username')
           .eq('id', widget.otherUserId)
           .maybeSingle();
       if (res != null) {
-        setState(() => _fetchedName = res['name']);
+        setState(() => _fetchedName = res['username']);
       }
     } catch (_) {}
   }

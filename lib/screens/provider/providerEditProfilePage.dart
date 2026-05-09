@@ -12,7 +12,7 @@ class _ProviderEditProfilePageState extends State<ProviderEditProfilePage> {
   final FirestoreService _service = FirestoreService();
   final _formKey = GlobalKey<FormState>();
 
-  final _nameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _specializationController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -34,7 +34,7 @@ class _ProviderEditProfilePageState extends State<ProviderEditProfilePage> {
       final user = await _service.getCurrentUserData();
       final provider = await _service.getProviderApplicationData();
       if (!mounted) return;
-      _nameController.text = user?['name']?.toString() ?? '';
+      _usernameController.text = user?['username']?.toString() ?? '';
       _phoneController.text =
           provider?['phonenumber']?.toString() ?? user?['phone']?.toString() ?? '';
       _specializationController.text = provider?['specialization']?.toString() ?? '';
@@ -56,8 +56,23 @@ class _ProviderEditProfilePageState extends State<ProviderEditProfilePage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
+      final currentUser = await _service.getCurrentUserData();
+      final currentUserId = _service.currentUid;
+      final username = _usernameController.text.trim();
+      final existingUsername =
+          currentUser?['username']?.toString().trim() ?? '';
+      if (currentUserId != null && username != existingUsername) {
+        final usernameTaken = await _service.isUsernameTaken(
+          username,
+          excludeUserId: currentUserId,
+        );
+        if (usernameTaken) {
+          throw Exception('Username is already taken. Please choose another one.');
+        }
+      }
+
       await _service.updateProviderProfile(
-        name: _nameController.text,
+        username: username,
         phone: _phoneController.text,
         specialization: _specializationController.text,
         description: _descriptionController.text,
@@ -82,7 +97,7 @@ class _ProviderEditProfilePageState extends State<ProviderEditProfilePage> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _usernameController.dispose();
     _phoneController.dispose();
     _specializationController.dispose();
     _descriptionController.dispose();
@@ -132,7 +147,7 @@ class _ProviderEditProfilePageState extends State<ProviderEditProfilePage> {
                 key: _formKey,
                 child: Column(
                   children: [
-                    _field(controller: _nameController, label: 'Name'),
+                    _field(controller: _usernameController, label: 'Username'),
                     _field(
                       controller: _phoneController,
                       label: 'Phone',
@@ -175,4 +190,3 @@ class _ProviderEditProfilePageState extends State<ProviderEditProfilePage> {
     );
   }
 }
-

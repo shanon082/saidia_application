@@ -3,7 +3,7 @@ import 'package:saidia_app/screens/customers/bookingPage.dart';
 import 'package:saidia_app/screens/customers/chatPage.dart';
 import 'package:saidia_app/services/firestore_services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
+// import 'package:url_launcher/url_launcher.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:smooth_star_rating_null_safety/smooth_star_rating_null_safety.dart';
 
@@ -43,12 +43,17 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     try {
       final row = await Supabase.instance.client
           .from('users')
-          .select('name')
+          .select('username')
           .eq('id', widget.providerId)
           .maybeSingle();
       if (!mounted) return;
-      final name = row?['name']?.toString().trim();
-      setState(() => _providerName = (name != null && name.isNotEmpty) ? name : 'Service Provider');
+      final username = row?['username']?.toString().trim();
+      setState(
+        () =>
+            _providerName = (username != null && username.isNotEmpty)
+                ? username
+                : 'Service Provider',
+      );
     } catch (_) {
       if (mounted) setState(() => _providerName = 'Service Provider');
     }
@@ -98,12 +103,12 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     }
   }
 
-  Future<void> _launchPhone(String phone) async {
-    final Uri launchUri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(launchUri)) {
-      await launchUrl(launchUri);
-    }
-  }
+  // Future<void> _launchPhone(String phone) async {
+  //   final Uri launchUri = Uri(scheme: 'tel', path: phone);
+  //   if (await canLaunchUrl(launchUri)) {
+  //     await launchUrl(launchUri);
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +120,7 @@ class _ServiceDetailPageState extends State<ServiceDetailPage> {
     final List<String> businessImages =
         (widget.data['businessImages'] as List<dynamic>?)?.cast<String>() ?? [];
     final String profileImage = widget.data['imageUrl'] ?? '';
-    final String phone = widget.data['phonenumber'] ?? 'Not provided';
+    // final String phone = widget.data['phonenumber'] ?? 'Not provided';
     final double rating = (widget.data['rating'] as num?)?.toDouble() ?? 0.0;
 
     return Scaffold(

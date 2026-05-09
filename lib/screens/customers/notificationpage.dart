@@ -63,26 +63,15 @@ class NotificationPage extends StatelessWidget {
 
   Future<String?> _resolveProviderName(String providerId) async {
     try {
-      final appDoc = await Supabase.instance.client
-          .from('provider_applications')
-          .select()
-          .eq('userId', providerId)
-          .maybeSingle();
-      
-      final specialization = appDoc?['specialization']?.toString();
-      if (specialization != null && specialization.trim().isNotEmpty) {
-        return specialization.trim();
-      }
-
       final userDoc = await Supabase.instance.client
           .from('users')
-          .select()
+          .select('username')
           .eq('id', providerId)
           .maybeSingle();
-      
-      final userName = userDoc?['name']?.toString();
-      if (userName != null && userName.trim().isNotEmpty) {
-        return userName.trim();
+
+      final userName = userDoc?['username']?.toString().trim();
+      if (userName != null && userName.isNotEmpty) {
+        return userName;
       }
     } catch (_) {}
     return null;

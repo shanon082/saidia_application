@@ -8,7 +8,6 @@ import 'package:saidia_app/services/firestore_services.dart';
 class ReviewsPage extends StatelessWidget {
   ReviewsPage({super.key});
 
-  final _auth = Supabase.instance.client.auth;
   final _supabase = Supabase.instance.client;
   final FirestoreService _service = FirestoreService();
 
@@ -91,10 +90,14 @@ class ReviewsPage extends StatelessWidget {
                     return FutureBuilder<Map<String, dynamic>?>(
                       future: customerId == null
                           ? null
-                          : _supabase.from('users').select().eq('id', customerId).maybeSingle(),
+                          : _supabase
+                                .from('users')
+                                .select('username')
+                                .eq('id', customerId)
+                                .maybeSingle(),
                       builder: (context, userSnap) {
                         final customerName =
-                            userSnap.data?['name']?.toString() ??
+                            userSnap.data?['username']?.toString() ??
                             'Customer';
                         return ListTile(
                           leading: CircleAvatar(

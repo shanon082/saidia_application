@@ -102,7 +102,7 @@ class _MessagesPageState extends State<MessagesPage> {
         orElse: () => fallbackOther,
       );
       final userSnap = await _supabase.from('users').select().eq('id', other).maybeSingle();
-      final userNameRaw = userSnap?['name']?.toString().trim();
+      final userNameRaw = userSnap?['username']?.toString().trim();
       final otherName = (userNameRaw != null && userNameRaw.isNotEmpty)
           ? userNameRaw
           : other;
@@ -169,7 +169,7 @@ class _MessagesPageState extends State<MessagesPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search conversation by user id...',
+                hintText: 'Search conversation by username...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -273,8 +273,10 @@ class _MessagesPageState extends State<MessagesPage> {
                                 ),
                               ),
                               subtitle: Text(
-                                '${convo.lastMessage.isEmpty ? 'No messages yet' : convo.lastMessage}\n${convo.otherUserId}',
-                                maxLines: 2,
+                                convo.lastMessage.isEmpty
+                                    ? 'No messages yet'
+                                    : convo.lastMessage,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               trailing: Text(

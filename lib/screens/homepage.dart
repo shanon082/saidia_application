@@ -21,6 +21,18 @@ class HomePage extends StatelessWidget {
     return rawStatus?.toString().trim().toLowerCase() ?? '';
   }
 
+  String _friendlyLoadError(Object? error) {
+    final raw = (error?.toString() ?? '').toLowerCase();
+    if (raw.contains('socketexception') ||
+        raw.contains('failed host lookup') ||
+        raw.contains('network is unreachable') ||
+        raw.contains('connection refused') ||
+        raw.contains('timed out')) {
+      return 'No internet connection. Please check your network and try again.';
+    }
+    return 'Failed to load your profile right now. Please try again.';
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -43,7 +55,7 @@ class HomePage extends StatelessWidget {
                     const Icon(Icons.error_outline, size: 60, color: Colors.red),
                     const SizedBox(height: 12),
                     Text(
-                      'Failed to load profile: ${snapshot.error}',
+                      _friendlyLoadError(snapshot.error),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),

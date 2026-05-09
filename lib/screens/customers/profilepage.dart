@@ -124,7 +124,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         SizedBox(height: 20),
                         Text(
-                          _userData?['name'] ?? 'User',
+                          _userData?['username'] ?? 'User',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -132,14 +132,6 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
                         SizedBox(height: 8),
-                        Text(
-                          _auth.currentUser?.email ?? 'No email',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white.withOpacity(0.9),
-                          ),
-                        ),
-                        SizedBox(height: 4),
                         Text(
                           _userData?['phone'] ?? 'No phone number',
                           style: TextStyle(

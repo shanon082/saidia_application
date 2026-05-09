@@ -15,7 +15,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _auth = Supabase.instance.client.auth;
   final _dataService = FirestoreService();
 
-  final _nameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -69,7 +69,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
     if (message.contains('already registered') ||
         message.contains('user already registered')) {
-      return 'Email is already registered. Please login instead.';
+      return 'Account is already registered. Please login instead.';
     }
 
     if (message.contains('otp_disabled') ||
@@ -122,12 +122,20 @@ class _SignUpPageState extends State<SignUpPage> {
     try {
       final email = _emailController.text.trim().toLowerCase();
       final formattedPhone = _formatPhoneNumber(_phoneController.text);
+      final username = _usernameController.text.trim();
 
       print('Starting signup process...');
+      print('Username: $username');
       print('Email: $email');
       print('Formatted Phone: $formattedPhone');
 
-      if (!_isValidEmail(email)) {
+      if (username.isEmpty) {
+        throw 'Please enter a username';
+      }
+      if (username.length < 3) {
+        throw 'Username must be at least 3 characters';
+      }
+      if (email.isNotEmpty && !_isValidEmail(email)) {
         throw 'Please enter a valid email address';
       }
       if (!_isValidPhone(_phoneController.text)) {
@@ -143,14 +151,19 @@ class _SignUpPageState extends State<SignUpPage> {
       print('Checking for duplicate accounts...');
       bool emailTaken = false;
       bool phoneTaken = false;
+      bool usernameTaken = false;
       try {
         emailTaken = await _dataService.isEmailTaken(email);
         phoneTaken = await _dataService.isPhoneTaken(formattedPhone);
+        usernameTaken = await _dataService.isUsernameTaken(username);
       } catch (e) {
         // If signup lookup is blocked by RLS, continue and rely on DB unique constraints.
         print('Duplicate pre-check skipped: $e');
       }
 
+      if (usernameTaken) {
+        throw 'Username is already taken. Please choose another username.';
+      }
       if (emailTaken) {
         throw 'Email is already registered. Please use a different email or login.';
       }
@@ -158,12 +171,13 @@ class _SignUpPageState extends State<SignUpPage> {
         throw 'Phone number is already registered. Please use a different phone number.';
       }
 
-      print('No duplicates found. Creating auth account + sending verification code...');
+      print('No duplicates found. Creating auth account...');
       final signUpRes = await _auth.signUp(
-        email: email,
+        email: email.isNotEmpty ? email : null,
+        phone: email.isEmpty ? formattedPhone : null,
         password: _passwordController.text,
         data: {
-          'name': _nameController.text.trim(),
+          'username': username,
           'phone': formattedPhone,
           'role': 'customer',
         },
@@ -173,18 +187,40 @@ class _SignUpPageState extends State<SignUpPage> {
       }
 
       if (!mounted) return;
-      setState(() {
-        _isOtpSent = true;
-        _isLoading = false;
-      });
+      if (email.isNotEmpty) {
+        setState(() {
+          _isOtpSent = true;
+          _isLoading = false;
+        });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Verification code sent to $email. Enter the OTP to verify your account.'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verification code sent to $email. Enter the OTP to verify your account.'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        await _dataService.createUserProfile(
+          uid: signUpRes.user!.id,
+          username: username,
+          phone: formattedPhone,
+        );
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully. Please login.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginPage()),
+          (route) => false,
+        );
+      }
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -231,7 +267,7 @@ class _SignUpPageState extends State<SignUpPage> {
       try {
         await _dataService.createUserProfile(
           uid: user.id,
-          name: _nameController.text.trim(),
+          username: _usernameController.text.trim(),
           email: email,
           phone: _formatPhoneNumber(_phoneController.text),
         );
@@ -493,7 +529,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
@@ -554,15 +590,15 @@ class _SignUpPageState extends State<SignUpPage> {
                     children: [
                       if (!_isOtpSent) ...[
                         _buildTextField(
-                          controller: _nameController,
-                          label: 'Full Name',
+                          controller: _usernameController,
+                          label: 'Username',
                           icon: Icons.person_outline,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Please enter your full name';
+                              return 'Please enter a username';
                             }
-                            if (value.trim().split(' ').length < 2) {
-                              return 'Please enter your full name (first and last name)';
+                            if (value.trim().length < 3) {
+                              return 'Username must be at least 3 characters';
                             }
                             return null;
                           },
@@ -570,12 +606,12 @@ class _SignUpPageState extends State<SignUpPage> {
                         const SizedBox(height: 10),
                         _buildTextField(
                           controller: _emailController,
-                          label: 'Email Address',
+                          label: 'Email Address (optional)',
                           icon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return 'Please enter your email address';
+                              return null;
                             }
                             if (!_isValidEmail(value)) {
                               return 'Please enter a valid email address';

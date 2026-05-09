@@ -18,7 +18,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final ImagePicker _picker = ImagePicker();
   
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _phoneController = TextEditingController();
   
   Map<String, dynamic>? _userData;
@@ -42,7 +42,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         if (data != null) {
           setState(() {
             _userData = data;
-            _nameController.text = _userData?['name'] ?? '';
+            _usernameController.text = _userData?['username'] ?? '';
             _phoneController.text = _userData?['phone'] ?? '';
             _profileImageUrl = _userData?['profileImageUrl'];
             _isLoading = false;
@@ -83,6 +83,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
+      final username = _usernameController.text.trim();
+      final existingUsername = _userData?['username']?.toString().trim() ?? '';
+      if (username != existingUsername) {
+        final taken = await FirestoreService.instance.isUsernameTaken(
+          username,
+          excludeUserId: user.id,
+        );
+        if (taken) {
+          throw Exception('Username is already taken. Please choose another one.');
+        }
+      }
 
       String? imageUrl;
       if (_selectedImage != null) {
@@ -93,7 +104,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
 
       final updateData = <String, dynamic>{
-        'name': _nameController.text.trim(),
+        'username': username,
         'phone': _phoneController.text.trim(),
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -199,9 +210,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     SizedBox(height: 32),
                     
                     TextFormField(
-                      controller: _nameController,
+                      controller: _usernameController,
                       decoration: InputDecoration(
-                        labelText: 'Full Name',
+                        labelText: 'Username',
                         prefixIcon: Icon(Icons.person_outline),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -213,7 +224,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your name';
+                          return 'Please enter your username';
                         }
                         return null;
                       },

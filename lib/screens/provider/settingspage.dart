@@ -35,7 +35,7 @@ class _SettingsPageState extends State<SettingsPage> {
               _settingsItem(
                 Icons.person_outline,
                 'Personal Information',
-                'Update your name, phone, and email',
+                'Update your username and phone',
                 () async {
                   await Navigator.push(
                     context,

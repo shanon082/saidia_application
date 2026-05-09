@@ -20,6 +20,7 @@ dependencies:
   smooth_star_rating_null_safety: ^1.0.4+2
   table_calendar: ^3.2.0
   syncfusion_flutter_charts: ^32.1.24
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

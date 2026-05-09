@@ -15,8 +15,8 @@ class WelcomePage extends StatelessWidget {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Color(0xFF2575FC),
-                Color(0xFF6A11CB),
+                Color(0xFFFFFFFF),
+                Color(0xFFFFFFFF),
               ],
             ),
           ),
@@ -48,7 +48,7 @@ class WelcomePage extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 18,
-                    color: Colors.white70,
+                    color: Colors.blueGrey,
                     height: 1.5,
                   ),
                 ),
@@ -67,8 +67,8 @@ class WelcomePage extends StatelessWidget {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF2575FC),
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: const Color(0xFFFFFFFF),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
@@ -98,8 +98,8 @@ class WelcomePage extends StatelessWidget {
                       );
                     },
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white, width: 2),
-                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.blueAccent, width: 2),
+                      foregroundColor: Colors.blueAccent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
@@ -124,7 +124,7 @@ class WelcomePage extends StatelessWidget {
                   child: const Text(
                     'Continue as Guest',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: Colors.grey,
                       fontSize: 16,
                     ),
                   ),

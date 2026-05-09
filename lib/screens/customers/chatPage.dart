@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 
 import 'package:saidia_app/services/firestore_services.dart';
@@ -54,7 +53,7 @@ class _ChatPageState extends State<ChatPage> {
     try {
       final userRes = await Supabase.instance.client
           .from('users')
-          .select('name')
+          .select('username')
           .eq('id', widget.providerId)
           .maybeSingle();
       final providerRes = await Supabase.instance.client
@@ -65,9 +64,9 @@ class _ChatPageState extends State<ChatPage> {
 
       if (!mounted) return;
       setState(() {
-        final name = userRes?['name']?.toString().trim();
-        if (name != null && name.isNotEmpty) {
-          _fetchedName = name;
+        final fetched = userRes?['username']?.toString().trim();
+        if (fetched != null && fetched.isNotEmpty) {
+          _fetchedName = fetched;
         }
         final spec = providerRes?['specialization']?.toString().trim();
         if (spec != null && spec.isNotEmpty) {

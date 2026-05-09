@@ -35,15 +35,18 @@ class _ServicesListPageState extends State<ServicesListPage> {
 
     final rows = await Supabase.instance.client
         .from('users')
-        .select('id, name')
+        .select('id, username')
         .inFilter('id', ids);
 
     final map = <String, String>{};
     for (final row in rows) {
       final id = row['id']?.toString();
-      final name = row['name']?.toString().trim();
-      if (id != null && id.isNotEmpty && name != null && name.isNotEmpty) {
-        map[id] = name;
+      final username = row['username']?.toString().trim();
+      if (id != null &&
+          id.isNotEmpty &&
+          username != null &&
+          username.isNotEmpty) {
+        map[id] = username;
       }
     }
     return map;
